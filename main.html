@@ -1,0 +1,41 @@
+<head>
+  <title>flowblock</title>
+</head>
+
+<body>
+  {{> editor}}
+  {{> content}}
+</body>
+
+<template name="content">
+<div> content1 </div>
+<div> content2 </div>
+</template>
+
+<template name="editor">
+<div id="block-editor">
+    <button id="new">add</button><br> 
+    <h3> <input type="checkbox" name="container" {{checked 'container'}} > container</h3>
+    <p>direction <br>
+    <input type="radio" value="row" name="direction" {{selected 'direction' 'row'}} /> row <br>
+    <input type="radio" value="column" name="direction" {{selected 'direction' 'column'}}/> column <br>
+    </p>
+    <p>justify <br>
+    <input type="radio" value="flex-start" name="justify" {{selected 'justify' 'flex-start'}}/> start <br>
+    <input type="radio" value="center" name="justify" {{selected 'justify' 'center'}}/> center <br>
+    <input type="radio" value="flex-end" name="justify" {{selected 'justify' 'flex-end'}}/> end <br>
+    <input type="radio" value="stretch" name="justify" {{selected 'justify' 'stretch'}}/> stretch <br>
+    </p>
+    <p>align <br>
+    <input type="radio" value="flex-start" name="align" {{selected 'align' 'flex-start'}}/> start <br>
+    <input type="radio" value="center" name="align" {{selected 'align' 'center'}}/> center <br>
+    <input type="radio" value="flex-end" name="align" {{selected 'align' 'flex-end'}}/> end <br>
+    <input type="radio" value="stretch" name="align" {{selected 'align' 'stretch'}}/> stretch <br>
+    </p>
+
+    <h3><input type="checkbox" name="item" {{checked 'item'}}/> item </h3>
+    grow : <input type="text" name="grow" value="{{itemValue 'grow'}}" /><br>
+    shrink: <input type="text" name="shrink" value="{{itemValue 'shrink'}}"/><br>
+    basis: <input type="text" name="basis" value="{{itemValue 'basis'}}"/><br>
+</div>
+</template>
