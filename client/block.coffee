@@ -45,7 +45,52 @@ setupBody = (body) ->
 
 Template.body.rendered = () ->
     editorNode = $("#block-editor")[0]
-    curNode = $("body")[0]
+    iframe = $("iframe")[0]
+
+    doc = iframe.contentWindow.document
+    $(iframe).contents().find("head").append("""
+    <style type="text/css">
+.block {
+    background: #EEEEEE;
+    border: 1px solid black;
+    /*min-width: 10px;*/
+    /*min-height: 10px;*/
+}
+.block-over {
+    background: #EEEEFF;
+}
+.block-selected {
+    background: #DDDDFF;
+}
+html {
+    min-height : 100%;
+
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    display: flex;
+
+}
+body {
+    display: -webkit-box;
+    display: -moz-box;
+    display: -ms-flexbox;
+    display: -webkit-flex;
+    display: flex;
+
+    -webkit-justify-content : center;
+    -webkit-align-items : center;
+    -webkit-align-content : center;
+    justify-content : center;
+    align-items : center;
+    align-content : center;
+}
+
+    </style>
+""")
+
+    curNode = doc.body
     curNodeProps.set css2props curNode
     setupBody curNode
 
@@ -53,7 +98,7 @@ divId = 1
 
 Template.editor.events
     "click #new" : (e) ->
-        console.log "new clicked", curNode
+        #console.log "new clicked", curNode
         div = $("<div class='block'> content" + (divId++) + "</div>")
         $(curNode).append div
         setupDiv div

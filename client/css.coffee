@@ -72,7 +72,7 @@ props =
     return values and values.pop()
 
 @css2props = (element) ->
-    console.log "css2props", element
+    #console.log "css2props", element
     result = item : {}
 
     displayStyle = getStyle element, "display"
@@ -82,10 +82,8 @@ props =
         container[key] = cssValue element, css[key] for key in ["direction", "justify", "align", "wrap"]
 
     item = result.item
-    itemValue = cssValue element, css.flex ? "0 0 auto"
+    itemValue = (cssValue element, css.flex) or "0 0 auto"
     [item.grow, item.shrink, item.basis] = itemValue.split " "
     result.item = undefined if item.grow == "0" and item.shrink =="0" and item.basis == "auto"
-
-    console.log result
     return result
 
