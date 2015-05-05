@@ -25,6 +25,9 @@ makecss = (keys, values) ->
 css =
     flexbox : ["-webkit-box", "-moz-box", "-ms-flexbox", "-webkit-flex", "flex"]
     flex : ["-webkit-box-flex", "-moz-box-flex", "-webkit-flex", "-ms-flex", "flex"]
+    "flex-grow" : ["-webkit-flex-grow", "flex-grow"]
+    "flex-shrink" : ["-webkit-flex-shrink", "flex-shrink"]
+    "flex-basis" : ["-webkit-flex-basis", "flex-basis"]
     align : ["-webkit-align-items", "align-items", "-webkit-align-content", "align-content"]
     justify : ["-webkit-justify-content", "justify-content"]
     direction : ["-webkit-flex-direction", "flex-direction"]
@@ -55,6 +58,7 @@ props =
     else
         result.push.apply result, makecss "display", "block"
 
+#TODO parse flex-grow flex-shrink flex-basis, because flex is empty
     itemValue = "0 0 auto"
     itemValue = [ item.grow or 0, item.shrink or 0, item.basis or "auto"].join " " if item
 
@@ -62,9 +66,9 @@ props =
 
     ("#{item[0]} : #{item[1]};" for item in result).join "\n"
 
-cssValue = (element, keys) ->
+@cssValue = (element, keys) ->
     values = (getStyle element, key for key in keys)
-    values = (value for value in values when value?)
+    values = (value for value in values when value? and value != "")
     return values and values.pop()
 
 @css2props = (element) ->
