@@ -11,6 +11,7 @@
 .block {
     background: #EEEEEE;
     border: 1px solid black;
+    margin: 5px;
     /*min-width: 10px;*/
     /*min-height: 10px;*/
 }
