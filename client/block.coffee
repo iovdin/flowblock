@@ -32,6 +32,7 @@ Template.body.rendered = () ->
         body, div {
             background: #EEEEEE;
             border: 1px solid black;
+            margin: 5px;
         }
         .block-over {
             background: #EEEEFF;
