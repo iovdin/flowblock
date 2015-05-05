@@ -79,6 +79,15 @@ Template.editor.events
         curNodeProps.set css2props curNode
         #curNodeProps.set props
 
+    "input input" : (e) ->
+        t = e.currentTarget
+        return unless t.type == "text"
+        props = curNodeProps.get()
+        return unless props?
+
+        props.item[t.name] = t.value
+        $(curNode).attr "style", props2css props
+        curNodeProps.set props
 
 Template.editor.helpers
     checked : (name) ->
