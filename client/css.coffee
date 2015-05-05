@@ -21,18 +21,21 @@ makecss = (keys, values) ->
 
     return result
 
+
 css =
     flexbox : ["-webkit-box", "-moz-box", "-ms-flexbox", "-webkit-flex", "flex"]
     flex : ["-webkit-box-flex", "-moz-box-flex", "-webkit-flex", "-ms-flex", "flex"]
     align : ["-webkit-align-items", "align-items", "-webkit-align-content", "align-content"]
     justify : ["-webkit-justify-content", "justify-content"]
     direction : ["-webkit-flex-direction", "flex-direction"]
+    wrap : ["flex-wrap", "-webkit-flex-wrap"]
 
 props =
     container:
         direction: "row"
         justify : "stretch"
         align : "stretch"
+        wrap : "wrap"
     item:
         grow : 0
         shrink: 0
@@ -48,6 +51,7 @@ props =
         result.push.apply result, makecss css.direction, container.direction if container.direction?
         result.push.apply result, makecss css.justify, container.justify if container.justify?
         result.push.apply result, makecss css.align, container.align if container.align?
+        result.push.apply result, makecss css.wrap, if container.wrap? then "wrap" else "nowrap"
     else
         result.push.apply result, makecss "display", "block"
 
@@ -71,7 +75,7 @@ cssValue = (element, keys) ->
     container = result.container = {} if displayStyle in css.flexbox
 
     if container
-        container[key] = cssValue element, css[key] for key in ["direction", "justify", "align"]
+        container[key] = cssValue element, css[key] for key in ["direction", "justify", "align", "wrap"]
 
     item = result.item
     itemValue = cssValue element, css.flex ? "0 0 auto"

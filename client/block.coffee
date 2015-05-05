@@ -63,6 +63,9 @@ Template.editor.events
         if t.name == "container"
             props.container = if t.checked then {} else undefined
 
+        if t.name == "wrap" and props.container
+            props.container.wrap = if t.checked then "wrap" else "nowrap"
+
         if t.name == "item"
             props.item = if t.checked then grow: 1, shrink: 1, basis: "auto" else grow:0, shrink:0, basis:"auto"
 
@@ -72,13 +75,18 @@ Template.editor.events
         if t.type == "text"
             props.item[t.name] = t.value
 
-        curNodeProps.set props
         $(curNode).attr "style", props2css props
+        curNodeProps.set css2props curNode
+        #curNodeProps.set props
 
 
 Template.editor.helpers
     checked : (name) ->
         node = curNodeProps.get()
+        if name == "wrap"
+            return "disabled" unless node and node.container
+            return "checked" if node.container.wrap == "wrap"
+            return ""
         return "" unless node and node[name]
         return "checked" if name=="container"
         return "checked" if name=="item"
