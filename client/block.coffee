@@ -2,28 +2,6 @@ curNode = null
 editorNode = null
 @curNodeProps = new ReactiveVar()
 
-setupDiv = (div) ->
-        $(div).addClass "block"
-
-        $(div).mouseout () ->
-            $(div).removeClass "block-over"
-
-        $(div).mouseover () ->
-            $(div).addClass "block-over"
-
-        $(div).click () ->
-            if curNode == div
-                $(div).toggleClass "block-selected"
-                curNode = $("body")[0]
-                curNodeProps.set css2props curNode
-                return
-
-            if curNode
-                $(curNode).removeClass "block-selected"
-            curNode = div
-            curNodeProps.set css2props curNode
-            $(curNode).addClass "block-selected"
-
 setupBody = (body) ->
     $(body).click (e) ->
         target = e.target
@@ -33,6 +11,7 @@ setupBody = (body) ->
         #not a body or a div
         return if not target.tagName.toLowerCase() in ["body", "div"]
         
+        console.log "click", curNode, target
         if curNode == target
             $(curNode).toggleClass "block-selected"
             return
@@ -50,43 +29,40 @@ Template.body.rendered = () ->
     doc = iframe.contentWindow.document
     $(iframe).contents().find("head").append("""
     <style type="text/css">
-.block {
-    background: #EEEEEE;
-    border: 1px solid black;
-    /*min-width: 10px;*/
-    /*min-height: 10px;*/
-}
-.block-over {
-    background: #EEEEFF;
-}
-.block-selected {
-    background: #DDDDFF;
-}
-html {
-    min-height : 100%;
+        body, div {
+            background: #EEEEEE;
+            border: 1px solid black;
+        }
+        .block-over {
+            background: #EEEEFF;
+        }
+        .block-selected {
+            border: 2px solid tomato;
+        }
+        html {
+            min-height : 100%;
 
-    display: -webkit-box;
-    display: -moz-box;
-    display: -ms-flexbox;
-    display: -webkit-flex;
-    display: flex;
+            display: -webkit-box;
+            display: -moz-box;
+            display: -ms-flexbox;
+            display: -webkit-flex;
+            display: flex;
 
-}
-body {
-    display: -webkit-box;
-    display: -moz-box;
-    display: -ms-flexbox;
-    display: -webkit-flex;
-    display: flex;
+        }
+        body {
+            display: -webkit-box;
+            display: -moz-box;
+            display: -ms-flexbox;
+            display: -webkit-flex;
+            display: flex;
 
-    -webkit-justify-content : center;
-    -webkit-align-items : center;
-    -webkit-align-content : center;
-    justify-content : center;
-    align-items : center;
-    align-content : center;
-}
-
+            -webkit-justify-content : center;
+            -webkit-align-items : center;
+            -webkit-align-content : center;
+            justify-content : center;
+            align-items : center;
+            align-content : center;
+        }
     </style>
 """)
 
@@ -98,10 +74,8 @@ divId = 1
 
 Template.editor.events
     "click #new" : (e) ->
-        #console.log "new clicked", curNode
         div = $("<div class='block'> content" + (divId++) + "</div>")
         $(curNode).append div
-        setupDiv div
     "change input" : (e) ->
         t = e.currentTarget
         props = curNodeProps.get()

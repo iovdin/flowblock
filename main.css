@@ -12,19 +12,6 @@
     width : 40px;
 }
 
-.block {
-    background: #EEEEEE;
-    border: 1px solid black;
-    /*min-width: 10px;*/
-    /*min-height: 10px;*/
-}
-.block-over {
-    background: #EEEEFF;
-}
-.block-selected {
-    background: #DDDDFF;
-}
-
 iframe {
     width : 600px;
     height: 400px;
