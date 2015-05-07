@@ -12,6 +12,26 @@
     width : 40px;
 }
 
+#code-editor {
+    position: fixed;
+    top: 5px;
+    right: 5px;
+    width: 250px;
+    background: #EEEEEE;
+}
+#code-editor > ul {
+    list-style-type : none;
+}
+.css-selector {
+    color : red;
+}
+.css-key {
+    color : green;
+}
+.css-value {
+    color : blue;
+}
+
 iframe {
     width : 600px;
     height: 400px;

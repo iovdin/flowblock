@@ -1,29 +1,36 @@
 curNode = null
+curNodeDep = new Tracker.Dependency
 editorNode = null
-@curNodeProps = new ReactiveVar()
+
+Tracker.autorun () ->
+    curNodeDep.depend()
+    return unless curNode?
+    $(curNode).addClass "block-selected"
 
 setupBody = (body) ->
+    addNode()
+    addNode()
     $(body).click (e) ->
         target = e.target
-        #click on editor
-        return if $(target).closest(editorNode).length > 0
+        return unless target?
+        if target != curNode
+            $(curNode).removeClass "block-selected" if curNode
+            curNode = target
+        else
+            $(curNode).removeClass "block-selected"
+            curNode = body
 
-        #not a body or a div
-        return if not target.tagName.toLowerCase() in ["body", "div"]
-        
-        console.log "click", curNode, target
-        if curNode == target
-            $(curNode).toggleClass "block-selected"
-            return
-
-        $(curNode).removeClass "block-selected" if curNode
-        curNode = target
-        curNodeProps.set css2props curNode
-        $(curNode).addClass "block-selected"
-
+        curNodeDep.changed()
+    $(body).keypress (e) ->
+        return unless e.which in [8, 46]
+        return unless curNode?
+        return if curNode == body
+        $(curNode).remove()
+        curNode = body
+        curNodeDep.changed()
 
 Template.body.rendered = () ->
-    editorNode = $("#block-editor")[0]
+    editorNode = $("#code-editor")[0]
     iframe = $("iframe")[0]
 
     doc = iframe.contentWindow.document
@@ -63,72 +70,64 @@ Template.body.rendered = () ->
             justify-content : center;
             align-items : center;
             align-content : center;
+
+            flex: 1 0 auto;
+            -webkit-flex: 1 0 auto;
+
         }
     </style>
 """)
 
     curNode = doc.body
-    curNodeProps.set css2props curNode
+    curNodeDep.changed()
     setupBody curNode
 
-divId = 1
+@divId = 1
 
-Template.editor.events
+addNode = () ->
+        identifier = "content" + (divId++)
+        div = $("<div class='block' id='#{identifier}'> #{identifier} </div>")
+        $(curNode).append div if curNode
+
+Template.code.events
     "click #new" : (e) ->
-        div = $("<div class='block'> content" + (divId++) + "</div>")
-        $(curNode).append div
-    "change input" : (e) ->
-        t = e.currentTarget
-        props = curNodeProps.get()
-        if t.name == "container"
-            props.container = if t.checked then {} else undefined
+        addNode()
+    "input span" : _.debounce ((e) ->
+        target = e.target
+        name = $(target).attr("name")
+        value = $(target).text()
+        p = props.get()
+        p[name] = value
+        if name in ["flex-grow", "flex-shrink", "flex-basis"]
+            delete p["flex"]
+        $(curNode).attr "style", props2css p
+        curNodeDep.changed()
+        #console.log "input", name, value
+        ) , 500
 
-        if t.name == "wrap" and props.container
-            props.container.wrap = if t.checked then "wrap" else "nowrap"
+props = new ReactiveVar({})
+Template.code.rendered = () ->
+    this.autorun () ->
+        curNodeDep.depend()
+        props.set({})
+        return unless curNode?
+        props.set(css2props curNode)
 
-        if t.name == "item"
-            props.item = if t.checked then grow: 1, shrink: 1, basis: "auto" else grow:0, shrink:0, basis:"auto"
+Template.code.helpers
+    value : (name) ->
+        return props.get()[name]
+    selector : () ->
+        curNodeDep.depend()
+        return "" unless curNode?
+        return "#" + $(curNode).attr("id") if $(curNode).attr("id")
+        return curNode.tagName.toLowerCase()
+    flexDisplay : () ->
+        curNodeDep.depend()
+        return "" unless curNode?
+        return props.get()["display"] == "flex"
+    nodeSelected : () ->
+        curNodeDep.depend()
+        return curNode
 
-        if t.type == "radio" and props.container
-            props.container[t.name] = t.value
-
-        if t.type == "text"
-            props.item[t.name] = t.value
-
-        $(curNode).attr "style", props2css props
-        curNodeProps.set css2props curNode
-        #curNodeProps.set props
-
-    "input input" : (e) ->
-        t = e.currentTarget
-        return unless t.type == "text"
-        props = curNodeProps.get()
-        return unless props?
-
-        props.item[t.name] = t.value
-        $(curNode).attr "style", props2css props
-        curNodeProps.set props
-
-Template.editor.helpers
-    checked : (name) ->
-        node = curNodeProps.get()
-        if name == "wrap"
-            return "disabled" unless node and node.container
-            return "checked" if node.container.wrap == "wrap"
-            return ""
-        return "" unless node and node[name]
-        return "checked" if name=="container"
-        return "checked" if name=="item"
-        return ""
-
-    selected : (name, value) ->
-        node = curNodeProps.get()
-        return "disabled" unless node and node.container
-        return "checked" if node.container[name] == value
-        return ""
-    itemValue : (name) ->
-        props = curNodeProps.get()
-        return props.item[name] if props and props.item
-        return ""
 
 

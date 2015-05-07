@@ -3,7 +3,7 @@
 </head>
 
 <body>
-  {{> editor}}
+  {{> code}}
   <iframe></iframe>
 </body>
 
@@ -39,4 +39,60 @@
     shrink: <input type="text" name="shrink" value="{{itemValue 'shrink'}}"/><br>
     basis: <input type="text" name="basis" value="{{itemValue 'basis'}}"/><br>
 </div>
+</template>
+
+<template name="code">
+<code id="code-editor">
+    <button id="new">new block</button><br> 
+    {{#if nodeSelected}}
+    <span class="css-selector" contentEditable=true>{{selector}}</span> {
+    <ul>
+        <li>
+        <span class="css-key">display</span> : 
+        <span class="css-value" contentEditable=true name="display">{{value 'display'}}</span>;
+        </li>
+        {{#if flexDisplay}}
+        <li>
+        <span class="css-key">flex-direction</span> : 
+        <span class="css-value" contentEditable=true name="flex-direction">{{value 'flex-direction'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">flex-wrap</span> : 
+        <span class="css-value" contentEditable=true name="flex-wrap">{{value 'flex-wrap'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">justify-content</span> : 
+        <span class="css-value" contentEditable=true name="justify-content">{{value 'justify-content'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">align-items</span> : 
+        <span class="css-value" contentEditable=true name="align-items">{{value 'align-items'}}</span>;
+        </li>
+        {{/if}}
+
+        <br>
+
+        <li>
+        <span class="css-key">flex</span> : 
+        <span class="css-value" contentEditable=true name="flex">{{value 'flex'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">flex-grow</span> : 
+        <span class="css-value" contentEditable=true name="flex-grow">{{value 'flex-grow'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">flex-shrink</span> : 
+        <span class="css-value" contentEditable=true name="flex-shrink">{{value 'flex-shrink'}}</span>;
+        </li>
+        <li>
+        <span class="css-key">flex-basis</span> : 
+        <span class="css-value" contentEditable=true name="flex-basis">{{value 'flex-basis'}}</span>;
+        </li>
+    </ul>
+    }
+    {{else}}
+    nothing selected
+    {{/if}}
+
+</code>
 </template>
