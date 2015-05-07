@@ -1,3 +1,4 @@
+rootNode = null
 curNode = null
 curNodeDep = new Tracker.Dependency
 editorNode = null
@@ -6,6 +7,7 @@ Tracker.autorun () ->
     curNodeDep.depend()
     return unless curNode?
     $(curNode).addClass "block-selected"
+
 
 setupBody = (body) ->
     addNode()
@@ -23,11 +25,7 @@ setupBody = (body) ->
         curNodeDep.changed()
     $(body).keypress (e) ->
         return unless e.which in [8, 46]
-        return unless curNode?
-        return if curNode == body
-        $(curNode).remove()
-        curNode = body
-        curNodeDep.changed()
+        removeNode()
 
 Template.body.rendered = () ->
     editorNode = $("#code-editor")[0]
@@ -78,7 +76,7 @@ Template.body.rendered = () ->
     </style>
 """)
 
-    curNode = doc.body
+    rootNode = curNode = doc.body
     curNodeDep.changed()
     setupBody curNode
 
@@ -88,10 +86,18 @@ addNode = () ->
         identifier = "content" + (divId++)
         div = $("<div class='block' id='#{identifier}'> #{identifier} </div>")
         $(curNode).append div if curNode
+removeNode = () ->
+    return unless curNode?
+    return if curNode.tagName != "DIV"
+    $(curNode).remove()
+    curNode = rootNode
+    curNodeDep.changed()
 
 Template.code.events
     "click #new" : (e) ->
         addNode()
+    "click #remove" : (e) ->
+        removeNode()
     "input span" : _.debounce ((e) ->
         target = e.target
         name = $(target).attr("name")
