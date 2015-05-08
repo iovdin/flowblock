@@ -51,6 +51,43 @@ props =
     "flex-shrink" : 1
     "flex-basis" : "auto"
 
+selectValidator = (cases) ->
+    return (value) ->
+        return value in cases
+
+isNumber = (value) ->
+    return true if _.isNumber value and value >= 0
+    if _.isString value
+        parsed = parseFloat value
+        return false if _.isNaN parsed
+        return true if parsed >= 0
+    return false
+
+String.prototype.endsWith = (suffix) ->
+    return this.indexOf(suffix, this.length - suffix.length) isnt -1
+
+
+isLength = (value) ->
+    return true if isNumber value
+    return false unless _.isString value
+
+    #TODO validate number
+    return true if value.endsWith ext for ext in ["px", "mm", "cm", "in", "pt", "pc", "em", "ex", "ch", "rem", "%"]
+    return false
+
+
+@validators =
+    "display" : selectValidator ["flex", "flex-inline", "block", "inline", "none"]
+    "flex-direction" : selectValidator ["row" , "row-reverse" , "column" , "column-reverse"]
+    "flex-wrap" : selectValidator ["wrap", "nowrap", "wrap-reverse"]
+    "justify-content" : selectValidator ["flex-start" , "flex-end" , "center", "space-between" , "space-around"]
+    "align-items" : selectValidator [ "flex-start" , "flex-end" , "center" , "baseline" , "stretch" ]
+    "flex-shrink" : isNumber
+    "flex-grow" : isNumber
+    "flex-basis" : (value) ->
+        return true if value is "auto"
+        return isLength value
+
 
 @props2css = (props) ->
     result = []
@@ -62,17 +99,15 @@ props =
     else
         result.push.apply result, makecss "display", "block"
 
-    console.log props
-    if props.flex?
-        result.push.apply result, makecss prefixes.flex, props.flex
-    else
-        result.push.apply result, makecss prefixes[key], props[key] for key in ["flex-grow", "flex-shrink", "flex-basis"]
+    #if props.flex?
+        #result.push.apply result, makecss prefixes.flex, props.flex
+    #else
+    result.push.apply result, makecss prefixes[key], props[key] for key in ["flex-grow", "flex-shrink", "flex-basis"]
     ("#{item[0]} : #{item[1]};" for item in result).join "\n"
 
 
 @css2props = (element) ->
     result = {}
-
     displayStyle = getStyle element, "display"
     if displayStyle in prefixes.display
         result.display = "flex"

@@ -93,23 +93,44 @@ removeNode = () ->
     curNode = rootNode
     curNodeDep.changed()
 
+
+    
+changeProp = (name, value) ->
+    p = props.get()
+    p[name] = value
+    $(curNode).attr "style", props2css p
+    curNodeDep.changed()
+
 Template.code.events
     "click #new" : (e) ->
         addNode()
     "click #remove" : (e) ->
         removeNode()
-    "input span" : _.debounce ((e) ->
+    "keypress span" : (e) ->
         target = e.target
         name = $(target).attr("name")
         value = $(target).text()
-        p = props.get()
-        p[name] = value
-        if name in ["flex-grow", "flex-shrink", "flex-basis"]
-            delete p["flex"]
-        $(curNode).attr "style", props2css p
-        curNodeDep.changed()
-        #console.log "input", name, value
-        ) , 500
+        if e.which in [ 13, 27 ]
+            e.preventDefault()
+            $(target).blur()
+            changeProp name, value if e.which == 13
+            curNodeDep.changed()
+            return
+
+    "input span" : (e) ->
+        target = e.target
+        name = $(target).attr("name")
+        value = $(target).text()
+
+        validator = validators[name]
+        return unless validator?
+
+        if validator value
+            changeProp name, value
+        else
+            #TODO show node
+            console.log("invalid value", name, value)
+
 
 props = new ReactiveVar({})
 Template.code.rendered = () ->
@@ -121,6 +142,7 @@ Template.code.rendered = () ->
 
 Template.code.helpers
     value : (name) ->
+        return "" if $("span[name='#{name}']").is(":focus")
         return props.get()[name]
     selector : () ->
         curNodeDep.depend()
