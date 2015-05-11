@@ -4,12 +4,22 @@
 
 <body>
   {{> code}}
-  <iframe></iframe>
+  {{> sources}}
 </body>
 
-<template name="content">
-<div> content1 </div>
-<div> content2 </div>
+<template name="sources">
+<!--<div>
+    <input type="radio" value="html" name="page"/> html
+    <input type="radio" value="css_src" name="page"/> css source 
+    <input type="radio" value="html_src" name="page"/> html source 
+</div>-->
+<iframe></iframe>
+<pre id="css_src">
+{{cssSource}}
+</pre>
+<pre id="html">
+{{htmlSource}}
+</pre>
 </template>
 
 <template name="editor">

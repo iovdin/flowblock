@@ -1,9 +1,13 @@
+
 @getStyle = (element, key) ->
     if typeof key == "object"
         keys = key
         values = (getStyle element, key for key in keys)
         values = (value for value in values when value? and value != "")
         return values and values.pop()
+
+    if element.type is "rule"
+        return decl.value for decl in element.declarations when decl.property == key
 
     defaultView = (element.ownerDocument || document).defaultView
     if defaultView and defaultView.getComputedStyle
@@ -89,33 +93,66 @@ isLength = (value) ->
         return isLength value
 
 
-@props2css = (props) ->
-    result = []
-    container = props.container
-    item = props.item
-    if props.display == "flex"
-        result.push.apply result, makecss "display", prefixes.display
-        result.push.apply result, makecss prefixes[key], props[key] for key in ["flex-direction", "flex-wrap", "justify-content", "align-items"]
-    else
-        result.push.apply result, makecss "display", "block"
-
-    #if props.flex?
-        #result.push.apply result, makecss prefixes.flex, props.flex
-    #else
-    result.push.apply result, makecss prefixes[key], props[key] for key in ["flex-grow", "flex-shrink", "flex-basis"]
-    ("#{item[0]} : #{item[1]};" for item in result).join "\n"
-
-
-@css2props = (element) ->
+@getProps = (element) ->
     result = {}
+    return result unless element?
+    if element.type == "rule"
+        result.selector = element.selectors[0]
+    else if $(element).attr("id")
+        result.selector = "#" + $(element).attr("id")
+    else
+        result.selector = element.tagName.toLowerCase() unless selector?
+
     displayStyle = getStyle element, "display"
     if displayStyle in prefixes.display
         result.display = "flex"
-        result[key] = getStyle element, prefixes[key] for key in ["flex-direction", "flex-wrap", "justify-content", "align-items"]
+        for key in ["flex-direction", "flex-wrap", "justify-content", "align-items"]
+            style = getStyle element, prefixes[key]
+            result[key] = style if style?
     else
-        result.display = displayStyle
+        result.display = displayStyle if displayStyle?
 
-    result[key] = getStyle element, prefixes[key] for key in ["flex-grow", "flex-shrink", "flex-basis"]
-    result.flex = result["flex-grow"] + " " + result["flex-shrink"] + " " + result["flex-basis"]
+    for key in ["flex-grow", "flex-shrink", "flex-basis"]
+        style = getStyle element, prefixes[key]
+        result[key] = style if style?
+
+    if result["flex-grow"] and result["flex-shrink"] and result["flex-basis"]
+        result.flex = result["flex-grow"] + " " + result["flex-shrink"] + " " + result["flex-basis"]
+
     return result
 
+decl = (key, value, expandPrefixes = false) ->
+    return type : "declaration",  property : key, value : value unless expandPrefixes
+    if key is "display"
+        if value is "flex"
+            return _.map prefixes.display, (prefix) ->
+                return decl "display", prefix
+        return type : "declaration",  property : "display", value : value
+
+    if prefixes[key]
+        return _.map prefixes[key], (prefix) ->
+            return decl prefix, value
+    return []
+
+@props2rule = (props, expandPrefixes = false) ->
+    rule =
+        type : "rule"
+        selectors : [props.selector]
+        declarations : []
+
+    decls = []
+    if props.display is "flex"
+        decls.push decl "display", "flex", expandPrefixes
+        decls.push decl key, props[key], expandPrefixes for key in ["flex-direction", "flex-wrap", "justify-content", "align-items"] when props[key]?
+    else
+        decls.push decl "display", props.display or "block", expandPrefixes
+
+    decls.push decl key, props[key], expandPrefixes for key in ["flex-grow", "flex-shrink", "flex-basis"] when props[key]?
+    rule.declarations = _.flatten decls
+    return rule
+
+compiler = new Compiler
+
+@props2css = (props, expandPrefixes = false) ->
+    rule = props2rule props, expandPrefixes
+    return compiler.mapVisit rule.declarations, "\n"
