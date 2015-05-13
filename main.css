@@ -19,7 +19,7 @@
     width: 250px;
     background: #EEEEEE;
 }
-#code-editor > ul {
+#code-editor ul {
     list-style-type : none;
 }
 .css-selector {
@@ -30,6 +30,10 @@
 }
 .css-value {
     color : blue;
+}
+.css-value-invalid {
+    color : red;
+
 }
 
 iframe {
