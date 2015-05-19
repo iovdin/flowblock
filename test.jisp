@@ -1,0 +1,634 @@
+;example usage - do nothing 
+(mac e.g. ...values
+     `())
+
+(mac new-scope ...body
+ `((fn (do ,...body))))
+
+(mac interval time ...body
+ `(new-scope
+     (= state 
+      (setInterval 
+       (fn (do ,...body)) ,time)
+     )
+     (= stop (fn (clearInterval state)))
+  ))
+
+(e.g.
+  (interval 
+    10
+    (if (is document.readyState "complete")
+      (do 
+        (prn "hello world")
+        (stop)))))
+
+;checks interval until condition is fulfilled
+(mac once condition ...body
+ `(interval 10
+     (if ,condition
+      (do 
+       (stop) 
+       ,...body))
+  ))
+
+(e.g. 
+ (once (is document.readyState "complete")
+  (prn "hello world")))
+
+(mac watch varname ...body
+ `(new-scope
+     (= oldvar ,varname)
+     (interval 10
+      (if (isnt ,varname oldvar)
+       (do
+        (= oldvar ,varname)
+        ,...body
+       )))
+  ))
+
+(e.g. 
+ (watch variable 
+  (prn "do something when variable has changed")))
+
+(def element name ...children
+     (do
+       (= result (document.createElement (name.toUpperCase)))
+       (for child index children 
+            (if (isa child "string")
+              (result.appendChild (document.createTextNode child))
+              (elif (instanceof child Element) 
+                    (result.appendChild child))
+              (elif (and (is index 0) (isa child "object"))
+                    (over value key child
+                          (result.setAttribute key value)))
+              (prn "unknown type" name child)))
+       result))
+
+(e.g.
+  (element "p")
+  (element "input" (type: "range"))
+  (element "p" "hello world")
+  (element "p" 
+           "hello world" 
+           (element "a" (href: "http://wrte.io") "wrte.io")))
+
+
+(def makeTag tag
+     (fn ...params
+         (element tag ...params)))
+
+(e.g.
+  (= p (makeTag "p")))
+
+(def defTags tags scope
+     (for tag tags
+          (= (get scope tag) (makeTag tag))))
+
+
+(e.g.
+  (defTags `("html" "body" "head") window))
+
+(defTags ("a abbr address area article aside audio b base bdi bdo big blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd keygen label legend li link main map mark menu menuitem meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script section select small source span strong style sub summary sup table tbody td textarea tfoot th thead time title tr track u ul var video wbr".split " ") window)
+
+;todo array
+(def findElements selector
+     (if (isa selector "string")
+       (for el (document.querySelectorAll selector) el)
+       (elif (instanceof selector Element) (list selector))
+       (elif (instanceof selector Array) 
+             ((list) .concat ...(for el selector (findElements el))))
+       (list)))
+
+
+(e.g.
+  (findElements "#content1")
+  (findElements (list "#content1" ".class"))
+  )
+
+
+(mac $ selector ...body
+     `(for element (findElements ,selector)
+           ((fn element (do ,...body)) element)
+           ))
+
+(e.g.
+  ($ "#content"
+     (css element (: "background-color" "#FFFFFF"))))
+
+(mac def$ name ...params body
+     `(def ,name selector ,...params 
+           ($ selector
+              ,body)))
+
+(e.g.
+  (def$ css style
+        (over value key style 
+              (= element.style[key] value)))
+  (css ".class" (:backgroundColor "#FF0000")))
+
+
+(def makePairs array
+     (array.reduce 
+       (fn prev cur index array
+           (do
+             (if (is (% index 2) 1)
+               (prev.push (list (get array (- index 1)) array[index])))
+             prev)) 
+       (list)))
+
+(e.g.
+ (is (makePairs `(1 2 3 4)) `((1 2) (3 4))))
+
+(def setPrefixedStyle element name value
+     (do
+       (= element.style[(dash2camel name)] value)
+       (= element.style[(dash2camel (prefix name))] value)
+       (= element.style[(dash2camel name)] (prefix value))
+       (= element.style[(dash2camel (prefix name))] (prefix value))
+       ))
+
+(def getPrefixedStyle element name 
+     (if (instanceof element Element)
+       (any 
+         (get element.style name)
+         (get element.style (dash2camel name))
+         (get element.style (prefix name))
+         (get element.style (dash2camel (prefix name))))
+       ))
+(def$ css style
+     (if (isa style "string")
+       (css element (style.split /\s+/))
+       (elif (instanceof style Array)
+             (for pair (makePairs style)
+                  (setPrefixedStyle element pair[0] pair[1])))
+       (elif (isa style "object")
+             (over value key style 
+                   (setPrefixedStyle element key value)))
+       ))
+
+(e.g.
+  (css element (backgroundColor: "#FF0000"))
+  (css element ("display" "flex" 
+                "display" "-webkit-flex"))
+  (css "#content" "display flex 
+                   display -webkit-flex")
+  )
+
+(def unselectable element
+     (css element (: "-webkit-touch-callout" "none"
+                     "-webkit-user-select" "none"
+                     "-khtml-user-select" "none"
+                     "-moz-user-select" "none"
+                     "-ms-user-select" "none"
+                     "user-select" "none")))
+
+(def selector ...values
+     (do
+       (= select (element "select"))
+       (for value values
+            (do
+              (= option (element "option"))
+              (= option.text value)
+              (select.add option)))
+       select))
+
+(e.g. 
+  (selector "flex" "block"))
+
+;return function to call to removeEventListener
+(def addListener object event callback
+     (let 
+       unsubscribe (fn ((get object "removeEventListener") event callback))
+       (do
+         ((get object "addEventListener") event callback)
+         unsubscribe)))
+
+(e.g.
+  (= unsubscribe 
+     (addListener document "click" 
+                  (fn event
+                      (prn "onclick")
+                      (unsubscribe)
+                      )))
+  )
+
+(mac on object eventname ...body
+     `(new-scope
+        (= unsubscribe 
+           (addListener ,object ,eventname (fn event (do ,...body))))
+        ))
+
+(mac on-once object eventname ...body
+     `(new-scope
+        (= unsubscribe 
+           (addListener ,object ,eventname (fn event (do (unsubscribe) ,...body))))
+        ))
+
+(e.g. 
+  (on (element "span" "text") "click"
+      (prn "clicked" event)
+      (unsubscribe))
+
+  (on-once document "mouseup"
+           (prn "mouseup"))
+  )
+
+(e.g. 
+  (on e "mousedown"
+      (= state (:))
+      (prn "click")
+      (= moveUnsubscribe 
+         (on document "mousemove"
+             (prn "mousemove")))
+      (on-once document "mouseup"
+               (moveUnsubscribe)
+               (prn "mouseup")
+               ))
+  )
+
+(e.g.
+  (on-drag element 
+           (prn "onstartdrag")
+           (prn "dragging")
+           (prn "more dragging")
+           (prn "onenddrag")
+           ))
+
+
+(def noop)
+
+
+(mac on-drag element start ...body end
+     `(on ,element "mousedown"
+          ,start
+          (= state (last : (x: event.pageX y: event.pageY) 
+                         start: (x: event.pageX y: event.pageY) 
+                         dx: 0 dy: 0 
+                         tdx: 0 tdy:0))
+          (= moveUnsubscribe 
+             (on document "mousemove"
+                 (= (state.tdx state.tdy) (list (- state.start.x event.pageX) (- state.start.y event.pageY)))
+                 (= (state.dx state.dy) (list (- state.last.x event.pageX) (- state.last.y event.pageY)))
+                 (= (state.last.x state.last.y) (list event.pageX event.pageY))
+                 ,...body))
+          (on-once document "mouseup"
+                   (moveUnsubscribe)
+                   ,end
+                   )))
+
+(e.g.
+  (on-drag element
+           (= node (element.childNodes[0]))
+           (= choice (interpolateArray state.tdx 10 choices))
+           (if (isnt choice node.nodeValue)
+             (= node.nodeValue choice))
+           (noop)
+           ))
+
+(def interpolateArray x step initialValue values
+     (do
+       (= initialIndex (values.indexOf initialValue))
+       ;find postfix of initialValue
+       (if (and (< initialIndex 0) 
+                (isa initialValue "string") 
+                (is (parseFloat initialValue)))
+          (do 
+            (= prefix (String (parseFloat initialValue)))
+            (= postfix (initialValue.substr prefix.length))
+            (values.find 
+              (fn (if (and (isa #0 "object") (of "postfix" #0) (is (get #0 "postfix") postfix))
+                    (= initialIndex #1)
+                    )))
+            ))
+       (if (< initialIndex 0)
+         (= initialIndex 0))
+       (= index (% (+ (Math.floor (/ x step)) initialIndex) values.length))
+       (if (< index 0)
+         (= index (+ index values.length)))
+       (get values index)))
+
+(e.g.
+  (is (interpolateArray 0 10  "a" `("a" "b" "c")) "a")
+  (is (interpolateArray 0 10  "b" `("a" "b" "c")) "b")
+  (is (interpolateArray 12 10 "100px" `("auto" (postfix: "px") "test")) "test")
+  )
+
+(def interpolateNumber x step initialValue options
+     (do
+      (= initialValue 
+         (if (isa initialValue "number") 
+           initialValue
+           (elif (isa initialValue "string") 
+                 (parseFloat initialValue))))
+       (= choice (+ (any initialValue options.default 0)
+                    (* (Math.floor (/ x step)) 
+                       (any options.step 1))))
+       (if (? options.min)
+         (= choice (Math.max choice options.min)))
+       (if (? options.max)
+         (= choice (Math.min choice options.max)))
+       (= choice (+ choice (any options.postfix 0)))
+       choice))
+
+(e.g.
+ (is (interpolateNumber -10 4 1 (min: 0)) 0)
+ (is (interpolateNumber 1000 4 1 (max: 100)))
+ (is (interpolateNumber 0 4 undefined (default: 5)) 5)
+ (is (interpolateNumber 0 4 1 (postfix: "px")) "1px")
+ (is (interpolateNumber 0 4 "1px" (postfix: "px")) "1px")
+ )
+
+(mac on-choose element options ...body
+     `(do
+        (= options ,options)
+        (= element ,element)
+        (= superOptions 
+           (if (and (instanceof options Array)
+                    (options.some 
+                      (fn opt 
+                          (and (isnta opt "string") (isnt opt "number")))))
+             options))
+
+        (= superMode false)
+        (def setSuperMode mode 
+             (do
+               (= superMode mode)
+               (if superMode
+                 (css element (list "border-bottom" "2px dashed #FF0000"))
+                 (css element (list "border-bottom" "1px dashed #46f"))
+                 )))
+        (setSuperMode false)
+
+        (if (? superOptions)
+          (do
+            (= options superOptions[0])
+            (setSuperMode true)))
+
+        (on-drag ,element
+                 (do
+                   (event.preventDefault)
+                   (= node (head (get element "childNodes")))
+                   (= initialValue node.nodeValue)
+                   (if superMode
+                     (= options (interpolateArray 0 10 initialValue  superOptions))))
+                 (if superMode
+                   (do 
+                     (= options (interpolateArray -state.tdx 10 initialValue  superOptions))
+                     (= choice 
+                        (if (instanceof options Array)
+                          options[0]
+                          (elif (isa options "string") options)
+                          (elif (isa options "object")
+                                (+ (any (parseFloat initialValue) options.default "") 
+                                   (any options.postfix "")))
+                          ""
+                          )))
+                   (= choice (if (instanceof options Array)
+                               (interpolateArray -state.tdx 10 initialValue  options)
+                               (elif (isa options "string") initialValue)
+                               (interpolateNumber -state.tdx 4 initialValue options)))
+                   )
+                 (if (isnt choice node.nodeValue)
+                   (do 
+                     (= node.nodeValue choice)
+                     ,...body))
+
+                 (if (and (? superOptions) (is initialValue node.nodeValue))
+                   (setSuperMode (not superMode)))
+                 )))
+
+(e.g. 
+  (on-choose element `("block" "flex" "none")
+             (prn choice))
+
+  (on-choose element (min: 0 step: 0.5 default: 1 postfix: "") 
+             (prn choice))
+
+  (on-choose element (list "auto" (min: 0 max: 100 step: 1 default: 1 postfix: "%") ) 
+             (prn choice))
+
+  (on-choose e (list 
+                 "auto" 
+                 (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
+                 ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
+                         (min: 0 step: 1 default: 1 postfix:m))) 
+             (prn choice))
+  )
+
+
+(def getComputedStyle element name
+     (do
+       (if (isa element "string")
+         (= element (document.querySelector element) ))
+       (if (instanceof element Element)
+         (do 
+           (= owner (or element.ownerDocument document))
+           (= defaultView  (get owner "defaultView"))
+           (if (and defaultView defaultView.getComputedStyle) 
+             (do 
+               (= st (defaultView.getComputedStyle element null))
+               (any 
+                 (st.getPropertyValue name)
+                 (st.getPropertyValue (dash2camel name))
+                 (st.getPropertyValue (prefix name))
+                 (st.getPropertyValue (dash2camel (prefix name)))
+                 ))
+             (elif element.currentStyle
+                   (any 
+                     (get element.currentStyle name)
+                     (get element.currentStyle (dash2camel name))
+                     (get element.currentStyle (prefix name))
+                     (get element.currentStyle (dash2camel (prefix name)))
+                     )
+                   )))
+         )
+       )
+     )
+
+(def getComputedStyle1 selector ...keys
+     (if (and (instanceof selector Element) (is keys.length 1))
+      (do 
+        (= owner (or selector.ownerDocument document))
+        (= defaultView  (get owner "defaultView"))
+        (if (and defaultView defaultView.getComputedStyle) 
+          (do 
+            (= st (defaultView.getComputedStyle selector null))
+            (and st (st.getPropertyValue keys[0])))
+          (elif selector.currentStyle
+                (get selector.currentStyle keys[0]))))
+       (elif (? (= element (get (findElements selector) 0)))
+             (keys.reduce 
+               (fn prev cur 
+                   (if prev
+                     prev
+                     (= prev (getComputedStyle element cur))
+                     )) undefined))
+       ))
+
+(e.g.
+  (getComputedStyle "#content" "display")
+  )
+
+
+(def getSpecifiedStyle element name
+     (do
+       (if (isa element "string")
+         (= element (document.querySelector element) ))
+       (getPrefixedStyle element name)))
+
+(e.g.
+ (getSpecifiedStyle element "display")
+ (getSpecifiedStyle "#content" "flex" "-webkit-flex")
+ )
+
+(def getStyle element name
+     (any (getSpecifiedStyle element name) (getComputedStyle element name)))
+
+(e.g.
+  (getStyle element "display")
+  (getStyle "#content" "display")
+  )
+
+(def prefix value
+     (+ "-webkit-" value))
+
+(def deprefix value
+     (if (is (value.indexOf "-webkit-") 0)
+       (value.substr 8)
+       value))
+
+(def dash2camel value
+     (value.replace 
+       /(-\w)/g
+       (fn match 
+           (match[1].toUpperCase))))
+
+(e.g.
+  (is (deprefix "-webkit-flex") "flex")
+  (is (prefix "flex") "-webkit-flex")
+  (is (dash2camel "-webkit-flex") "WebkitFlex")
+  (is (dash2camel "background-color") "backgroundColor")
+  )
+
+(def$ renderTo ...elements
+      (do
+        (for child element.childNodes
+             (element.removeChild child))
+        (for e elements
+             (element.appendChild e))))
+
+(e.g.
+  (renderTo "#content" (element "p" "hello world")))
+
+(mac css-property key value ...body 
+     `(new-scope
+        (= valueElement (span ,value))
+        (css valueElement (: cursor "ew-resize"
+                             "border-bottom" "1px dashed #46f"))
+        (= keyElement (span ,key))
+        ,...body
+        (= result (li (: "id" ,key) keyElement ": " valueElement))
+        (unselectable result)
+        result
+        ))
+
+
+(e.g.
+  (css-property "display" "flex" 
+                (on-choose valueElement `("flex" "flex-inline" "block" "inline" "none")
+                           (prn choice)
+                           (css target (: "display" choice))
+                           )))
+
+
+(mac flex-property name choices ...body
+     `(css-property ,name (getStyle target ,name) 
+                    (on-choose valueElement ,choices
+                               (css target (: ,name choice))
+                               ,...body
+                               )))
+
+
+(e.g. 
+  (flex-property "flex-direction" `("row" "row-reverse" "column" "column-reverse"))
+
+  (flex-property "display" `("flex" "flex-inline" "block" "inline" "none")
+                 (css `("#flex-direction" "#flex-wrap" "#justify-content" "#align-items") 
+                      (display: (if (or (is value "flex") (is value "flex-inline")) "block" "none"))))
+
+  (flex-number-property "flex-grow" (min: 0 step: 0.5 default: 1 postfix: ""))
+  )
+
+(e.g.
+  (flex-number-property "flex-grow" (min: 0 step: 0.5 default: 1 postfix: ""))
+
+  (flex-property "flex-basis"
+                 (list 
+                     "auto" 
+                     (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
+                     ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
+                             (min: 0 step: 1 default: 1 postfix:m))))
+  )
+
+(def flexEditor target
+     (do
+       (= setFlexAvailable 
+          (fn choice
+              (css `("#flex-direction" "#flex-wrap" "#justify-content" "#align-items") 
+                   (visibility: (if (or (is choice "flex") (is choice "flex-inline")) "visible" "hidden")))))
+       (= result 
+          (code 
+            (span target) " {"
+            (ul (style: "list-style-type: none;") 
+                (flex-property 
+                  "display" `("flex" "flex-inline" "block" "inline" "none")
+                  (setFlexAvailable choice)
+                  )
+                (flex-property "flex-direction" `("row" "row-reverse" "column" "column-reverse"))
+                (flex-property "flex-wrap" `("wrap" "nowrap" "wrap-reverse"))
+                (flex-property "justify-content" `("flex-start" "flex-end" "center" "space-between" "space-around"))
+                (flex-property "align-items" `("flex-start" "flex-end" "center" "baseline" "stretch"))
+                (br)
+                (flex-property "flex-grow" (min: 0 default: 0 step : 1))
+                (flex-property "flex-shrink" (min: 0 default: 1 step : 1))
+                (flex-property "flex-basis" 
+                                      (list 
+                                        "auto" 
+                                        (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
+                                        ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
+                                                (min: 0 step: 1 postfix:m default: 1))
+                                        ))
+                )
+            "}"
+            ))
+       (once result.parentNode
+             (setFlexAvailable (deprefix (getStyle target "display"))))
+       result
+       ))
+
+(once (is document.readyState "complete")
+      (renderTo "body" 
+                (div (id: "editor"))
+                (div (id: "html") 
+                     (div (id: "body")))
+                )
+      (css "#editor" 
+           "position fixed 
+           top 10px
+           right 10px 
+           width 300px 
+           background-color #EEEEEE")
+
+           (css "#html" 
+                (: 
+                  "width" "600px" 
+                  "height" "400px"
+                  "background-color" "#EEEEEE"))
+
+           (watch target 
+                  (renderTo 
+                    "#editor" (flexEditor target)))
+
+           (= target "#html")
+           ;(prn (getSpecifiedStyle "#html" "-webkit-flex"))
+           )
