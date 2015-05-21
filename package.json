@@ -1,0 +1,7 @@
+{
+  "devDependencies": {
+    "gulp": "^3.8.11",
+    "gulp-plumber": "^1.0.1",
+    "jisp": "git://github.com/iovdin/jisp"
+  }
+}

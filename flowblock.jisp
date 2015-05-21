@@ -3,16 +3,16 @@
      `())
 
 (mac new-scope ...body
- `((fn (do ,...body))))
+     `((fn (do ,...body))))
 
 (mac interval time ...body
- `(new-scope
-     (= state 
-      (setInterval 
-       (fn (do ,...body)) ,time)
-     )
-     (= stop (fn (clearInterval state)))
-  ))
+     `(new-scope
+        (= state 
+           (setInterval 
+             (fn (do ,...body)) ,time)
+           )
+        (= stop (fn (clearInterval state)))
+        ))
 
 (e.g.
   (interval 
@@ -24,44 +24,46 @@
 
 ;checks interval until condition is fulfilled
 (mac once condition ...body
- `(interval 10
-     (if ,condition
-      (do 
-       (stop) 
-       ,...body))
-  ))
+     `(interval 10
+                (if ,condition
+                  (do 
+                    (stop) 
+                    ,...body))
+                ))
 
 (e.g. 
- (once (is document.readyState "complete")
-  (prn "hello world")))
+  (once (is document.readyState "complete")
+        (prn "hello world")))
 
 (mac watch varname ...body
- `(new-scope
-     (= oldvar ,varname)
-     (interval 10
-      (if (isnt ,varname oldvar)
-       (do
+     `(new-scope
         (= oldvar ,varname)
-        ,...body
-       )))
-  ))
+        (interval 10
+                  (if (isnt ,varname oldvar)
+                    (do
+                      ,...body
+                      (= oldvar ,varname)
+                      )))
+        ))
+
+(= doc document)
 
 (e.g. 
- (watch variable 
-  (prn "do something when variable has changed")))
+  (watch variable 
+         (prn "do something when variable has changed")))
 
 (def element name ...children
      (do
-       (= result (document.createElement (name.toUpperCase)))
+       (= result (doc.createElement (name.toUpperCase)))
        (for child index children 
             (if (isa child "string")
-              (result.appendChild (document.createTextNode child))
-              (elif (instanceof child Element) 
+              (result.appendChild (doc.createTextNode child))
+              (elif (instanceof child doc.defaultView.Element) 
                     (result.appendChild child))
               (elif (and (is index 0) (isa child "object"))
                     (over value key child
                           (result.setAttribute key value)))
-              (prn "unknown type" name child)))
+              (throw (new Error (+ "unknown element '" name "' with children: " child) ))))
        result))
 
 (e.g.
@@ -90,11 +92,10 @@
 
 (defTags ("a abbr address area article aside audio b base bdi bdo big blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd keygen label legend li link main map mark menu menuitem meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script section select small source span strong style sub summary sup table tbody td textarea tfoot th thead time title tr track u ul var video wbr".split " ") window)
 
-;todo array
 (def findElements selector
      (if (isa selector "string")
-       (for el (document.querySelectorAll selector) el)
-       (elif (instanceof selector Element) (list selector))
+       (for el (doc.querySelectorAll selector) el)
+       (elif (? selector.appendChild) (list selector))
        (elif (instanceof selector Array) 
              ((list) .concat ...(for el selector (findElements el))))
        (list)))
@@ -103,6 +104,7 @@
 (e.g.
   (findElements "#content1")
   (findElements (list "#content1" ".class"))
+  (is (findElements document.body) (list document.body))
   )
 
 
@@ -137,7 +139,7 @@
        (list)))
 
 (e.g.
- (is (makePairs `(1 2 3 4)) `((1 2) (3 4))))
+  (is (makePairs `(1 2 3 4)) `((1 2) (3 4))))
 
 (def setPrefixedStyle element name value
      (do
@@ -148,7 +150,7 @@
        ))
 
 (def getPrefixedStyle element name 
-     (if (instanceof element Element)
+     (if (? element.style)
        (any 
          (get element.style name)
          (get element.style (dash2camel name))
@@ -156,22 +158,22 @@
          (get element.style (dash2camel (prefix name))))
        ))
 (def$ css style
-     (if (isa style "string")
-       (css element (style.split /\s+/))
-       (elif (instanceof style Array)
-             (for pair (makePairs style)
-                  (setPrefixedStyle element pair[0] pair[1])))
-       (elif (isa style "object")
-             (over value key style 
-                   (setPrefixedStyle element key value)))
-       ))
+      (if (isa style "string")
+        (css element (style.split /\s+/))
+        (elif (instanceof style Array)
+              (for pair (makePairs style)
+                   (setPrefixedStyle element pair[0] pair[1])))
+        (elif (isa style "object")
+              (over value key style 
+                    (setPrefixedStyle element key value)))
+        ))
 
 (e.g.
   (css element (backgroundColor: "#FF0000"))
   (css element ("display" "flex" 
                 "display" "-webkit-flex"))
   (css "#content" "display flex 
-                   display -webkit-flex")
+       display -webkit-flex")
   )
 
 (def unselectable element
@@ -181,19 +183,6 @@
                      "-moz-user-select" "none"
                      "-ms-user-select" "none"
                      "user-select" "none")))
-
-(def selector ...values
-     (do
-       (= select (element "select"))
-       (for value values
-            (do
-              (= option (element "option"))
-              (= option.text value)
-              (select.add option)))
-       select))
-
-(e.g. 
-  (selector "flex" "block"))
 
 ;return function to call to removeEventListener
 (def addListener object event callback
@@ -257,6 +246,23 @@
 
 (def noop)
 
+(def stylesheet ...rules 
+     (do
+       (= sheet
+          (if (is doc.styleSheets.length 0)
+            (doc.head.appendChild (style "")).sheet
+            document.styleSheets[0]))
+       (for rule rules
+            (sheet.insertRule rule))))
+
+(e.g.
+  (stylesheet 
+    " body, div { 
+    background: #EEEEEE;
+    border: 1px solid black;
+    margin: 5px;
+    }
+    "))
 
 (mac on-drag element start ...body end
      `(on ,element "mousedown"
@@ -266,12 +272,12 @@
                          dx: 0 dy: 0 
                          tdx: 0 tdy:0))
           (= moveUnsubscribe 
-             (on document "mousemove"
+             (on doc "mousemove"
                  (= (state.tdx state.tdy) (list (- state.start.x event.pageX) (- state.start.y event.pageY)))
                  (= (state.dx state.dy) (list (- state.last.x event.pageX) (- state.last.y event.pageY)))
                  (= (state.last.x state.last.y) (list event.pageX event.pageY))
                  ,...body))
-          (on-once document "mouseup"
+          (on-once doc "mouseup"
                    (moveUnsubscribe)
                    ,end
                    )))
@@ -292,14 +298,14 @@
        (if (and (< initialIndex 0) 
                 (isa initialValue "string") 
                 (is (parseFloat initialValue)))
-          (do 
-            (= prefix (String (parseFloat initialValue)))
-            (= postfix (initialValue.substr prefix.length))
-            (values.find 
-              (fn (if (and (isa #0 "object") (of "postfix" #0) (is (get #0 "postfix") postfix))
-                    (= initialIndex #1)
-                    )))
-            ))
+         (do 
+           (= prefix (String (parseFloat initialValue)))
+           (= postfix (initialValue.substr prefix.length))
+           (values.find 
+             (fn (if (and (isa #0 "object") (of "postfix" #0) (is (get #0 "postfix") postfix))
+                   (= initialIndex #1)
+                   )))
+           ))
        (if (< initialIndex 0)
          (= initialIndex 0))
        (= index (% (+ (Math.floor (/ x step)) initialIndex) values.length))
@@ -315,11 +321,11 @@
 
 (def interpolateNumber x step initialValue options
      (do
-      (= initialValue 
-         (if (isa initialValue "number") 
-           initialValue
-           (elif (isa initialValue "string") 
-                 (parseFloat initialValue))))
+       (= initialValue 
+          (if (isa initialValue "number") 
+            initialValue
+            (elif (isa initialValue "string") 
+                  (parseFloat initialValue))))
        (= choice (+ (any initialValue options.default 0)
                     (* (Math.floor (/ x step)) 
                        (any options.step 1))))
@@ -331,12 +337,12 @@
        choice))
 
 (e.g.
- (is (interpolateNumber -10 4 1 (min: 0)) 0)
- (is (interpolateNumber 1000 4 1 (max: 100)))
- (is (interpolateNumber 0 4 undefined (default: 5)) 5)
- (is (interpolateNumber 0 4 1 (postfix: "px")) "1px")
- (is (interpolateNumber 0 4 "1px" (postfix: "px")) "1px")
- )
+  (is (interpolateNumber -10 4 1 (min: 0)) 0)
+  (is (interpolateNumber 1000 4 1 (max: 100)))
+  (is (interpolateNumber 0 4 undefined (default: 5)) 5)
+  (is (interpolateNumber 0 4 1 (postfix: "px")) "1px")
+  (is (interpolateNumber 0 4 "1px" (postfix: "px")) "1px")
+  )
 
 (mac on-choose element options ...body
      `(do
@@ -419,51 +425,19 @@
 (def getComputedStyle element name
      (do
        (if (isa element "string")
-         (= element (document.querySelector element) ))
-       (if (instanceof element Element)
+         (= element (doc.querySelector element) ))
+       (if (? element.ownerDocument.defaultView.getComputedStyle)
          (do 
-           (= owner (or element.ownerDocument document))
-           (= defaultView  (get owner "defaultView"))
-           (if (and defaultView defaultView.getComputedStyle) 
-             (do 
-               (= st (defaultView.getComputedStyle element null))
-               (any 
-                 (st.getPropertyValue name)
-                 (st.getPropertyValue (dash2camel name))
-                 (st.getPropertyValue (prefix name))
-                 (st.getPropertyValue (dash2camel (prefix name)))
-                 ))
-             (elif element.currentStyle
-                   (any 
-                     (get element.currentStyle name)
-                     (get element.currentStyle (dash2camel name))
-                     (get element.currentStyle (prefix name))
-                     (get element.currentStyle (dash2camel (prefix name)))
-                     )
-                   )))
+           (= st (element.ownerDocument.defaultView.getComputedStyle element null))
+           (any 
+             (st.getPropertyValue name)
+             (st.getPropertyValue (dash2camel name))
+             (st.getPropertyValue (prefix name))
+             (st.getPropertyValue (dash2camel (prefix name)))
+             ))
          )
        )
      )
-
-(def getComputedStyle1 selector ...keys
-     (if (and (instanceof selector Element) (is keys.length 1))
-      (do 
-        (= owner (or selector.ownerDocument document))
-        (= defaultView  (get owner "defaultView"))
-        (if (and defaultView defaultView.getComputedStyle) 
-          (do 
-            (= st (defaultView.getComputedStyle selector null))
-            (and st (st.getPropertyValue keys[0])))
-          (elif selector.currentStyle
-                (get selector.currentStyle keys[0]))))
-       (elif (? (= element (get (findElements selector) 0)))
-             (keys.reduce 
-               (fn prev cur 
-                   (if prev
-                     prev
-                     (= prev (getComputedStyle element cur))
-                     )) undefined))
-       ))
 
 (e.g.
   (getComputedStyle "#content" "display")
@@ -473,13 +447,13 @@
 (def getSpecifiedStyle element name
      (do
        (if (isa element "string")
-         (= element (document.querySelector element) ))
+         (= element (doc.querySelector element) ))
        (getPrefixedStyle element name)))
 
 (e.g.
- (getSpecifiedStyle element "display")
- (getSpecifiedStyle "#content" "flex" "-webkit-flex")
- )
+  (getSpecifiedStyle element "display")
+  (getSpecifiedStyle "#content" "flex" "-webkit-flex")
+  )
 
 (def getStyle element name
      (any (getSpecifiedStyle element name) (getComputedStyle element name)))
@@ -535,14 +509,14 @@
 
 (e.g.
   (css-property "display" "flex" 
-                (on-choose valueElement `("flex" "flex-inline" "block" "inline" "none")
+                (on-choose valueElement `("flex" "flex-inline" "inline" "none" "block" )
                            (prn choice)
                            (css target (: "display" choice))
                            )))
 
 
 (mac flex-property name choices ...body
-     `(css-property ,name (getStyle target ,name) 
+     `(css-property ,name (deprefix (getStyle target ,name))
                     (on-choose valueElement ,choices
                                (css target (: ,name choice))
                                ,...body
@@ -564,71 +538,113 @@
 
   (flex-property "flex-basis"
                  (list 
-                     "auto" 
-                     (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
-                     ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
-                             (min: 0 step: 1 default: 1 postfix:m))))
+                   "auto" 
+                   (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
+                   ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
+                           (min: 0 step: 1 default: 1 postfix:m))))
   )
 
 (def flexEditor target
      (do
        (= setFlexAvailable 
           (fn choice
-              (css `("#flex-direction" "#flex-wrap" "#justify-content" "#align-items") 
-                   (visibility: (if (or (is choice "flex") (is choice "flex-inline")) "visible" "hidden")))))
-       (= result 
+              (css containerProps 
+                   (visibility: (if (is choice "flex" "flex-inline")  "visible" "hidden")))))
+
+       (= containerProps (list))
+       (= selector 
+          (if (isa target "string")
+            target
+            (elif (? target.attributes.id) (+ "#" target.id))
+            (elif (? target.tagName) (target.tagName.toLowerCase))
+            "unknown selector"
+            ))
+       (= html 
           (code 
-            (span target) " {"
+            (span selector) " {"
             (ul (style: "list-style-type: none;") 
                 (flex-property 
-                  "display" `("flex" "flex-inline" "block" "inline" "none")
-                  (setFlexAvailable choice)
-                  )
-                (flex-property "flex-direction" `("row" "row-reverse" "column" "column-reverse"))
-                (flex-property "flex-wrap" `("wrap" "nowrap" "wrap-reverse"))
-                (flex-property "justify-content" `("flex-start" "flex-end" "center" "space-between" "space-around"))
-                (flex-property "align-items" `("flex-start" "flex-end" "center" "baseline" "stretch"))
+                  "display" `("flex" "flex-inline" "inline" "none" "block" )
+                  (setFlexAvailable choice))
+                ...(= containerProps 
+                      (list 
+                        (flex-property "flex-direction" 
+                                       `("row" "row-reverse" "column" "column-reverse"))
+                        (flex-property "flex-wrap" 
+                                       `("wrap" "nowrap" "wrap-reverse"))
+                        (flex-property "justify-content" 
+                                       `("flex-start" "flex-end" "center" "space-between" "space-around"))
+
+                        (flex-property "align-items" 
+                                       `("flex-start" "flex-end" "center" "baseline" "stretch"))))
                 (br)
                 (flex-property "flex-grow" (min: 0 default: 0 step : 1))
                 (flex-property "flex-shrink" (min: 0 default: 1 step : 1))
                 (flex-property "flex-basis" 
-                                      (list 
-                                        "auto" 
-                                        (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
-                                        ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
-                                                (min: 0 step: 1 postfix:m default: 1))
-                                        ))
+                               (list 
+                                 "auto" 
+                                 (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
+                                 ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
+                                         (min: 0 step: 1 postfix:m default: 1))
+                                 ))
                 )
             "}"
             ))
-       (once result.parentNode
-             (setFlexAvailable (deprefix (getStyle target "display"))))
-       result
+       (setFlexAvailable (deprefix (getStyle target "display")))
+       html
        ))
 
-(once (is document.readyState "complete")
+(once (is doc.readyState "complete")
+
       (renderTo "body" 
-                (div (id: "editor"))
-                (div (id: "html") 
-                     (div (id: "body")))
-                )
-      (css "#editor" 
-           "position fixed 
-           top 10px
-           right 10px 
-           width 300px 
-           background-color #EEEEEE")
+                (div (id: "editor")
+                 (button (id: "btn_new") "new" ) 
+                 (button (id: "btn_remove") "remove") 
+                 (br) 
+                 (div (id: "flex-properties")))
+                (iframe (id: "content")))
 
-           (css "#html" 
-                (: 
-                  "width" "600px" 
-                  "height" "400px"
-                  "background-color" "#EEEEEE"))
+      (css "#editor" "position fixed top 10px right 10px width 300px background-color #EEEEEE")
+      (css "#content" "width 600px height 400px")
 
-           (watch target 
-                  (renderTo 
-                    "#editor" (flexEditor target)))
+      (= frame (document.getElementById "content").contentDocument )
 
-           (= target "#html")
-           ;(prn (getSpecifiedStyle "#html" "-webkit-flex"))
-           )
+      (= doc frame)
+
+      (css doc.documentElement "min-width 100% display flex")
+
+      (def newId
+           (do (= freePostfix 1)
+             (while (is (frame.getElementById (+ "content" freePostfix))) freePostfix++)
+             (+ "content" freePostfix)))
+
+      (def content id
+           (div (id: id) "#" id))
+
+      (renderTo doc.body 
+                (content "content1") 
+                (content "content2"))
+
+      (css doc.body "height 100% display flex justify-content center align-items center flex-grow 1 background-color #EEEEEE")
+
+      (stylesheet "body, div { background: #EEEEEE; border: 1px solid black; margin: 5px; }")
+
+      (= doc document)
+
+      (on (document.getElementById "btn_new") "click"
+          ;(if (and (is target.children.length 0) (isnt (getStyle target "display") "flex" "flex-inline")))
+          (target.appendChild (content (newId))))
+      (on (document.getElementById "btn_remove") "click"
+          (if (isnt target frame.body)
+            (target.parentElement.removeChild target)))
+
+      (watch target 
+             (if oldvar
+               (css oldvar (border: "1px solid black")))
+             (css target (border: "2px solid tomato"))
+             (renderTo 
+               "#flex-properties" (flexEditor target)))
+
+      (= target frame.body)
+      (on frame.body "click" 
+          (= target event.target)))
