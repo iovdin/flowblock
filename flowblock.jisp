@@ -512,7 +512,7 @@
      (+ "-webkit-" value))
 
 (def deprefix value
-     (if (is (value.indexOf "-webkit-") 0)
+     (if (and (isa value "string") (is (value.indexOf "-webkit-") 0))
        (value.substr 8)
        value))
 
@@ -556,7 +556,7 @@
 
 (e.g.
   (css-property "display" "flex" 
-                (on-choose valueElement `("flex" "flex-inline" "inline" "none" "block" )
+                (on-choose valueElement `("flex" "inline" "none" "block" )
                            (prn choice)
                            (css target (: "display" choice))
                            )))
@@ -577,7 +577,7 @@
 (e.g. 
   (flex-property "flex-direction" `("row" "row-reverse" "column" "column-reverse"))
 
-  (flex-property "display" `("flex" "flex-inline" "block" "inline" "none")
+  (flex-property "display" `("flex" "block" "inline" "none")
                  (css `("#flex-direction" "#flex-wrap" "#justify-content" "#align-items") 
                       (display: (if (or (is value "flex") (is value "flex-inline")) "block" "none"))))
 
@@ -608,7 +608,7 @@
        (= setFlexAvailable 
           (fn choice
               (css containerProps 
-                   (visibility: (if (is choice "flex" "flex-inline")  "visible" "hidden")))))
+                   (visibility: (if (is choice "flex")  "visible" "hidden")))))
 
        (= containerProps (list))
        (= html 
@@ -616,7 +616,7 @@
             (span (selector target)) " {"
             (ul (style: "list-style-type: none;") 
                 (flex-property 
-                  "display" `("block" "flex" "flex-inline" "none" "inline" )
+                  "display" `("block" "flex" "none" "inline" )
                   (setFlexAvailable choice))
                 ...(= containerProps 
                       (list 
@@ -679,7 +679,7 @@
         (+
           "\n  /* container properties */\n\n"
           (cssDeclaration "display" (any properties.display "block") prefixed) "\n"
-          (if (is properties.display "flex" "flex-inline") 
+          (if (is properties.display "flex") 
             ((for containerProp `("flex-direction" "flex-wrap" "justify-content" "align-items") 
                   (if (? properties[containerProp])
                     (+ (cssDeclaration containerProp properties[containerProp] prefixed) (if prefixed "\n" "")))
@@ -718,21 +718,29 @@
   )
 
 (once (is doc.readyState "complete")
-
       (renderTo "body" 
                 (div (id: "editor")
                      (button (id: "btn_new") "new" ) 
                      (button (id: "btn_remove") "remove") 
                      (br) 
                      (div (id: "flex-properties")))
-                (iframe (id: "content")))
+                (form 
+                  (label (input (type: "radio" name: "tab" value: "preview" checked: true)) "preview")
+                  (label (input (type: "radio" name: "tab" value: "html")) "html")
+                  (label (input (type: "radio" name: "tab" value: "css")) "css")
+                  )
+                (iframe (id: "preview" class: "content"))
+                (textarea (id: "html" class: "content" style: "display: none"))
+                (textarea (id: "css" class: "content" style: "display: none"))
+                )
 
       (css "#editor" "position fixed top 10px right 10px width 300px background-color #EEEEEE")
-      (css "#content" "width 600px height 400px")
+      (css ".content" "width 600px height 400px")
+      (css "textarea" "font-family monospace")
 
       (css doc.documentElement "min-width 100% display flex")
-      (css doc.body "height 100% display flex justify-content center align-items center flex-grow 1")
-      (= frame (document.getElementById "content").contentDocument)
+      (css doc.body "height 100% display flex flex-direction column justify-content center align-items center flex-grow 1")
+      (= frame (document.getElementById "preview").contentDocument)
 
       (def newId
            (do (= freePostfix 1)
@@ -758,20 +766,33 @@
 
       (stylesheet "body, div { background: #EEEEEE; border: 1px solid black; margin: 5px; }")
 
-
+      (dataChanged)
       (= doc document)
 
       (def dataChanged
            (do
              (= doc frame)
              (localStorage.setItem "data" frame.body.innerHTML)
-             (= props (html: (: "min-width" "100%" "display" "flex")))
+             (= props (html: (: "min-width" "100%" "display" "flex")
+                             body: (flexProperties frame.body)))
+
              ($ "div" 
                 (= props[(selector element)] (flexProperties element)))
 
-             ((over value name props (cssFlexRule name value)).join "\n")
+             (= stylesheet ((over value name props (cssFlexRule name value)).join "\n"))
              (= doc document)
-             ))
+             (= html (+ "<body>\n"
+                        (do-recur frame.body.children "  "
+                                  ((for child #0
+                                        (+ #1 "<" (child.tagName.toLowerCase) " id='" child.id"'>\n" 
+                                           (recur child.children (+ #1 "  "))
+                                           #1 "</" (child.tagName.toLowerCase) ">\n")
+                                        ).join ""))
+
+                        "</body>"))
+
+             ($ "#css" (= element.value stylesheet))
+             ($ "#html" (= element.value html))))
 
       (on "#btn_new" "click"
           ;(if (and (is target.children.length 0) (isnt (getStyle target "display") "flex" "flex-inline")))
@@ -786,6 +807,10 @@
 
       (on document "propertyChange"
           (dataChanged))
+
+      (on "input[type=radio]" "click"
+          (css ".content" "display none") 
+          (css (+ "#" event.target.value) "display flex"))
 
       (watch target 
              (if oldvar
