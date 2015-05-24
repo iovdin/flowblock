@@ -46,6 +46,21 @@
                       )))
         ))
 
+(mac debounce time ...body
+     `(do
+        (= this.debounceLastRun (or this.debounceLastRun ((new Date).getTime)))
+        (= this.debounceNow ((new Date).getTime))
+        (if (and (< (Math.abs (- this.debounceNow this.debounceLastRun)) ,time) (? this.debounceInterval))
+          (clearTimeout this.debounceInterval))
+        (= this.debounceInterval 
+           (setTimeout 
+             (fn (do ,...body)) ,time))
+        (= this.debounceLastRun this.debounceNow)))
+
+(e.g.
+  (debounce 1000
+            (prn "hello world")))
+
 (= doc document)
 
 (e.g. 
@@ -62,7 +77,10 @@
                     (result.appendChild child))
               (elif (and (is index 0) (isa child "object"))
                     (over value key child
-                          (result.setAttribute key value)))
+                          (if (is key "css")
+                            (css result value)
+                            (result.setAttribute key value)
+                            )))
               (throw (new Error (+ "unknown element '" name "' with children: " child) ))))
        result))
 
@@ -90,7 +108,13 @@
 (e.g.
   (defTags `("html" "body" "head") window))
 
-(defTags ("a abbr address area article aside audio b base bdi bdo big blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd keygen label legend li link main map mark menu menuitem meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script section select small source span strong style sub summary sup table tbody td textarea tfoot th thead time title tr track u ul var video wbr".split " ") window)
+(defTags ("a abbr address area article aside audio b base bdi bdo big blockquote body br button canvas caption cite code col colgroup data datalist dd del details dfn dialog div dl dt em embed fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hr i img input ins iframe kbd keygen label legend li link main map mark menu menuitem meta meter nav noscript object ol optgroup option output p param picture pre progress q rp rt ruby s samp script section select small source span strong style sub summary sup table tbody td textarea tfoot th thead time title tr track u ul var video wbr".split " ") window)
+
+
+(e.g.
+  (iframe (head (style "some style")) 
+          (body )
+          ))
 
 (def findElements selector
      (if (isa selector "string")
@@ -141,13 +165,29 @@
 (e.g.
   (is (makePairs `(1 2 3 4)) `((1 2) (3 4))))
 
+(= prefixable ("flex flex-direction flex-wrap justify-content align-items flex-grow flex-shrink flex-basis".split " "))
+
+
+(def cssDeclaration name value prefixed
+   (if prefixed
+     (if (in name prefixable)
+       (+ (cssDeclaration name value) 
+          (cssDeclaration (prefix name) value))
+       (elif (in value prefixable)
+             (+ (cssDeclaration name value) 
+                (cssDeclaration name (prefix value))))
+       (cssDeclaration name value))
+     (+ "  " name ": " value ";\n")))
+
+
 (def setPrefixedStyle element name value
-     (do
-       (= element.style[(dash2camel name)] value)
-       (= element.style[(dash2camel (prefix name))] value)
-       (= element.style[(dash2camel name)] (prefix value))
-       (= element.style[(dash2camel (prefix name))] (prefix value))
-       ))
+     (if (in name prefixable)
+       (do (= element.style[(dash2camel name)] value)
+         (= element.style[(dash2camel (prefix name))] value))
+       (elif (in value prefixable)
+             (do (= element.style[(dash2camel name)] value)
+               (= element.style[(dash2camel name)] (prefix value))))
+       (= element.style[(dash2camel name)] value)))
 
 (def getPrefixedStyle element name 
      (if (? element.style)
@@ -157,6 +197,7 @@
          (get element.style (prefix name))
          (get element.style (dash2camel (prefix name))))
        ))
+
 (def$ css style
       (if (isa style "string")
         (css element (style.split /\s+/))
@@ -185,16 +226,19 @@
                      "user-select" "none")))
 
 ;return function to call to removeEventListener
-(def addListener object event callback
-     (let 
-       unsubscribe (fn ((get object "removeEventListener") event callback))
-       (do
-         ((get object "addEventListener") event callback)
-         unsubscribe)))
+(def addListener selector event callback
+     ((fn 
+        (do
+          (= elements (findElements selector))
+          (= unsubscribe (fn (for element elements
+                                  ((get element "removeEventListener") event callback))))
+          (for element elements
+               ((get element "addEventListener") event callback))
+          unsubscribe))))
 
 (e.g.
   (= unsubscribe 
-     (addListener document "click" 
+     (addListener "body" "click" 
                   (fn event
                       (prn "onclick")
                       (unsubscribe)
@@ -253,7 +297,8 @@
             (doc.head.appendChild (style "")).sheet
             document.styleSheets[0]))
        (for rule rules
-            (sheet.insertRule rule))))
+            (sheet.insertRule rule 0)
+            )))
 
 (e.g.
   (stylesheet 
@@ -489,7 +534,9 @@
         (for child element.childNodes
              (element.removeChild child))
         (for e elements
-             (element.appendChild e))))
+             (if (isa e "string")
+               (element.appendChild (doc.createTextNode e))
+               (element.appendChild e)))))
 
 (e.g.
   (renderTo "#content" (element "p" "hello world")))
@@ -518,8 +565,12 @@
 (mac flex-property name choices ...body
      `(css-property ,name (deprefix (getStyle target ,name))
                     (on-choose valueElement ,choices
+
                                (css target (: ,name choice))
                                ,...body
+                               (doc.dispatchEvent 
+                                 (new doc.defaultView.CustomEvent "propertyChange" 
+                                      (: "detail" (: "property" ,name "value" choice))))
                                )))
 
 
@@ -544,6 +595,14 @@
                            (min: 0 step: 1 default: 1 postfix:m))))
   )
 
+(def selector target
+     (if (isa target "string")
+       target
+       (elif (? target.attributes.id) (+ "#" target.id))
+       (elif (? target.tagName) (target.tagName.toLowerCase))
+       "unknown"
+       ))
+
 (def flexEditor target
      (do
        (= setFlexAvailable 
@@ -552,24 +611,17 @@
                    (visibility: (if (is choice "flex" "flex-inline")  "visible" "hidden")))))
 
        (= containerProps (list))
-       (= selector 
-          (if (isa target "string")
-            target
-            (elif (? target.attributes.id) (+ "#" target.id))
-            (elif (? target.tagName) (target.tagName.toLowerCase))
-            "unknown selector"
-            ))
        (= html 
           (code 
-            (span selector) " {"
+            (span (selector target)) " {"
             (ul (style: "list-style-type: none;") 
                 (flex-property 
-                  "display" `("flex" "flex-inline" "inline" "none" "block" )
+                  "display" `("block" "flex" "flex-inline" "none" "inline" )
                   (setFlexAvailable choice))
                 ...(= containerProps 
                       (list 
                         (flex-property "flex-direction" 
-                                       `("row" "row-reverse" "column" "column-reverse"))
+                                       `("row" "column" "column-reverse" "row-reverse" ))
                         (flex-property "flex-wrap" 
                                        `("wrap" "nowrap" "wrap-reverse"))
                         (flex-property "justify-content" 
@@ -594,49 +646,146 @@
        html
        ))
 
+(def flexProperties element 
+     (:: (for propName `("display" "flex-direction" "flex-wrap" "justify-content" "align-items" "flex-grow" "flex-shrink" "flex-basis")
+              (list propName (deprefix (getStyle element propName))))))
+
+(e.g.
+ (is (flexProperties frame.body) 
+     (: display "flex" "flex-direction" "row"))
+ )
+
+(def domVisit startElement callback
+     (do
+       (= h (callback startElement))
+       (= t (for element startElement.children
+                 (domVisit element callback)))
+       (if (and (? h) (? t.length)) 
+         (if (is t.length 0)
+           h (list h ...t)))))
+
+(e.g.
+  (do 
+    (= props (list))
+    (domVisit frame.body 
+              {props.push (selector #0) (flexProperties #0)})
+    ))
+
+(def dataMap start callback)
+
+
+(def cssFlexRule selector properties prefixed
+     (+ selector " {\n" 
+        (+
+          "\n  /* container properties */\n\n"
+          (cssDeclaration "display" (any properties.display "block") prefixed) "\n"
+          (if (is properties.display "flex" "flex-inline") 
+            ((for containerProp `("flex-direction" "flex-wrap" "justify-content" "align-items") 
+                  (if (? properties[containerProp])
+                    (+ (cssDeclaration containerProp properties[containerProp] prefixed) (if prefixed "\n" "")))
+                  ).join "")
+            ""
+            )
+          "\n  /* item properties */\n\n"
+          ((for itemProp `("flex-grow" "flex-shrink" "flex-basis") 
+                (if (? properties[itemProp])
+                  (+ (cssDeclaration itemProp properties[itemProp] prefixed) (if prefixed "\n" "")))
+                ).join "")
+          )
+        "}")
+     )
+
+(def content id 
+   (div (id: id) "#" id)
+   )
+
+(def pageDefaults body
+     (renderTo body 
+               (content "content1") 
+               (content "content2")))
+
+(mac do-recur ...params body
+     `(new-scope
+        (= recur (fn ,body))
+        (recur ,...params)))
+
+(e.g.
+ (do-recur `(1 2 3 (4 5 (6 7)))
+           (for item #0
+                (if (? item.length)
+                  (recur item)
+                  (prn item))))
+  )
+
 (once (is doc.readyState "complete")
 
       (renderTo "body" 
                 (div (id: "editor")
-                 (button (id: "btn_new") "new" ) 
-                 (button (id: "btn_remove") "remove") 
-                 (br) 
-                 (div (id: "flex-properties")))
+                     (button (id: "btn_new") "new" ) 
+                     (button (id: "btn_remove") "remove") 
+                     (br) 
+                     (div (id: "flex-properties")))
                 (iframe (id: "content")))
 
       (css "#editor" "position fixed top 10px right 10px width 300px background-color #EEEEEE")
       (css "#content" "width 600px height 400px")
 
-      (= frame (document.getElementById "content").contentDocument )
-
-      (= doc frame)
-
       (css doc.documentElement "min-width 100% display flex")
+      (css doc.body "height 100% display flex justify-content center align-items center flex-grow 1")
+      (= frame (document.getElementById "content").contentDocument)
 
       (def newId
            (do (= freePostfix 1)
              (while (is (frame.getElementById (+ "content" freePostfix))) freePostfix++)
              (+ "content" freePostfix)))
 
-      (def content id
-           (div (id: id) "#" id))
 
-      (renderTo doc.body 
-                (content "content1") 
-                (content "content2"))
+      (= doc frame)
+      (css frame.documentElement "min-width 100% display flex")
 
-      (css doc.body "height 100% display flex justify-content center align-items center flex-grow 1 background-color #EEEEEE")
+      (try
+        (if (= data (localStorage.getItem "data"))
+          (= frame.body.innerHTML data)
+          (pageDefaults frame.body))
+        (catch e
+               (do (prn "error loading data" e)
+                 (pageDefaults frame.body))
+               ))
+
+      (css "div" (border: "1px solid black"))
+      (css doc.body "display flex justify-content center align-items center flex-grow 1")
+      (css doc.body "height 100% background-color #EEEEEE")
 
       (stylesheet "body, div { background: #EEEEEE; border: 1px solid black; margin: 5px; }")
 
+
       (= doc document)
 
-      (on (document.getElementById "btn_new") "click"
+      (def dataChanged
+           (do
+             (= doc frame)
+             (localStorage.setItem "data" frame.body.innerHTML)
+             (= props (html: (: "min-width" "100%" "display" "flex")))
+             ($ "div" 
+                (= props[(selector element)] (flexProperties element)))
+
+             ((over value name props (cssFlexRule name value)).join "\n")
+             (= doc document)
+             ))
+
+      (on "#btn_new" "click"
           ;(if (and (is target.children.length 0) (isnt (getStyle target "display") "flex" "flex-inline")))
-          (target.appendChild (content (newId))))
-      (on (document.getElementById "btn_remove") "click"
+          (target.appendChild (content (newId)))
+          (dataChanged)
+          )
+
+      (on "#btn_remove" "click"
           (if (isnt target frame.body)
-            (target.parentElement.removeChild target)))
+            (target.parentElement.removeChild target))
+          (dataChanged))
+
+      (on document "propertyChange"
+          (dataChanged))
 
       (watch target 
              (if oldvar
@@ -646,5 +795,8 @@
                "#flex-properties" (flexEditor target)))
 
       (= target frame.body)
+
       (on frame.body "click" 
-          (= target event.target)))
+          (= target event.target))
+
+      )
