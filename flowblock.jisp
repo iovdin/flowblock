@@ -714,8 +714,16 @@
            (for item #0
                 (if (? item.length)
                   (recur item)
-                  (prn item))))
-  )
+                  (prn item)))))
+
+(e.g.
+  (form 
+    (do-with mylabel (text: "preview" checked: true) 
+             (label (input (type: "radio" name: "tab" value: text checked: checked)) text))
+    (mylabel "html" false)
+    (label (input (type: "radio" name: "tab" value: "html")) "html")
+    (label (input (type: "radio" name: "tab" value: "css")) "css")
+    ))
 
 (once (is doc.readyState "complete")
       (renderTo "body" 
@@ -766,7 +774,6 @@
 
       (stylesheet "body, div { background: #EEEEEE; border: 1px solid black; margin: 5px; }")
 
-      (dataChanged)
       (= doc document)
 
       (def dataChanged
@@ -779,7 +786,7 @@
              ($ "div" 
                 (= props[(selector element)] (flexProperties element)))
 
-             (= stylesheet ((over value name props (cssFlexRule name value)).join "\n"))
+             (= stylesheet ((over value name props (cssFlexRule name value true)).join "\n"))
              (= doc document)
              (= html (+ "<body>\n"
                         (do-recur frame.body.children "  "
@@ -793,6 +800,8 @@
 
              ($ "#css" (= element.value stylesheet))
              ($ "#html" (= element.value html))))
+
+      (dataChanged)
 
       (on "#btn_new" "click"
           ;(if (and (is target.children.length 0) (isnt (getStyle target "display") "flex" "flex-inline")))
@@ -825,3 +834,7 @@
           (= target event.target))
 
       )
+
+(e.g.
+  (deploy "flowblock")
+  (branch "test"))
