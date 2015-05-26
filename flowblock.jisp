@@ -351,10 +351,11 @@
          (do 
            (= prefix (String (parseFloat initialValue)))
            (= postfix (initialValue.substr prefix.length))
-           (values.find 
-             (fn (if (and (isa #0 "object") (of "postfix" #0) (is (get #0 "postfix") postfix))
-                   (= initialIndex #1)
-                   )))
+           (values.reduce 
+             (fn (if  (and (isnt #0) (isa #1 "object") (of "postfix" #1) (is (get #1 "postfix") postfix))
+                   (do (= initialIndex #2)
+                     #1)
+                   )) null)
            ))
        (if (< initialIndex 0)
          (= initialIndex 0))
@@ -735,7 +736,7 @@
 
 (e.g.
   (defncall hotkey "new" "n" (span (button (id: (+ "btn_" #0) ) #0 ) (+ "'" #1 "'") (br)))
-  (hotkey "remove" "d")
+  (hotkey "cut" "d")
   (hotkey "copy" "y")
   (hotkey "paste" "p")
   )
@@ -748,7 +749,7 @@
 
                      (defncall hotkey "new" "n" 
                                (span (button (id: (+ "btn_" #0) ) #0 ) " - '" #1 "' on keyboard" (br)))
-                     (hotkey "remove" "d")
+                     (hotkey "cut" "d")
                      (;hotkey "copy" "y")
                      (;hotkey "paste" "p")
                      )
@@ -800,9 +801,8 @@
 
       (= doc document)
       (= target null)
-
       (defncall 
-        dataChanged
+        saveChanges
         (do
           (= doc frame)
           (localStorage.setItem "data" frame.body.innerHTML)
@@ -812,79 +812,93 @@
           ($ "div" 
              (= props[(selector element)] (flexProperties element)))
 
-          (= stylesheet ((over value name props (cssFlexRule name value true)).join "\n"))
           (= doc document)
-          (= html (+ "<body>\n"
-                     (do-recur frame.body.children "  "
-                               ((for child #0
-                                     (+ #1 "<" (child.tagName.toLowerCase) " id='" child.id"'>\n" 
-                                        (recur child.children (+ #1 "  "))
-                                        #1 "</" (child.tagName.toLowerCase) ">\n")
-                                     ).join ""))
+          ($ "#css" (= element.value ((over value name props (cssFlexRule name value true)).join "\n")))
+          ($ "#html" (= element.value 
+                        (+ "<body>\n"
+                           (do-recur frame.body.children "  "
+                                     ((for child #0
+                                           (+ #1 "<" (child.tagName.toLowerCase) " id='" child.id"'>\n" 
+                                              (recur child.children (+ #1 "  "))
+                                              #1 "</" (child.tagName.toLowerCase) ">\n")
+                                           ).join ""))
 
-                     "</body>"))
+                           "</body>")))
+          ))
 
-          ($ "#css" (= element.value stylesheet))
-          ($ "#html" (= element.value html))
-          (= tabIndex 0)
-          (do-recur frame.body
-                    (do 
-                      ;TODO fix tabIndex is 2 * tabIndex
-                      (;prn "tabIndex" #0 tabIndex)
-                       (attr #0 (tabindex: tabIndex))
-                       tabIndex++
-                       (for child #0.children
-                            (recur child))))
+      (defncall retab frame.body 0
+                (do 
+                  ;TODO fix tabIndex is 2 * tabIndex
+                  (= tabIndex (any #1 0))
+                  (attr #0 (tabindex: tabIndex))
+                  tabIndex++
+                  (for child #0.children
+                       (= tabIndex (retab child tabIndex)))
+                  tabIndex))
 
-                    ))
+      (def addBlock 
+           (do 
+             (target.appendChild (content (newId)))
+             (retab frame.body 0)))
 
-        (mac change-on selector event ...body
-             `(on ,selector ,event
-                  ,...body
-                  (dataChanged)))
+      (def removeBlock
+           (if (isnt target frame.body)
+             (do
+               (= newTarget (any 
+                              target.previousElementSibling 
+                              target.nextElementSibling 
+                              target.parentElement))
+               (target.parentElement.removeChild target)
+               (if newTarget
+                 (= target newTarget))
+               (retab frame.body)
+               )))
 
-        (def addBlock 
-             (target.appendChild (content (newId))))
-
-        (def removeBlock
-             (if (isnt target frame.body)
-               (do
-                 (if (? target.nextElementSibling)
-                   (= newTarget target.nextElementSibling))
-                 (target.parentElement.removeChild target)
-                 (if newTarget
-                   (= target newTarget))
-                 )))
-
-        (change-on frame.body "keypress"
-                   (switch (String.fromCharCode event.charCode)
-                           (case "n" (addBlock))
-                           (case "d" (removeBlock))
-                           (prn event)))
-
-
-        (change-on "#btn_new" "click" (addBlock))
-        (change-on "#btn_remove" "click" (removeBlock))
-        (change-on document "propertyChange")
-
-        (on "input[type=radio]" "click"
-            (css ".content" "display none") 
-            (css (+ "#" event.target.value) "display flex"))
+      (on frame.body "keypress"
+          (switch (String.fromCharCode event.charCode)
+                  (case "n" (addBlock))
+                  (case "d" (removeBlock))
+                  (prn event))
+          (saveChanges)
+          )
 
 
-        (on frame.body "focusin"
-            (= target event.target))
+      (on "#btn_new" "click" 
+                 (addBlock)
+                 (saveChanges))
+      (on "#btn_remove" "click" 
+                 (removeBlock)
+                 (saveChanges))
 
-        (watch target
-               (if oldvar
-                 (css oldvar (border: "1px solid black")))
-               (css target (border: "2px solid tomato"))
-               (renderTo 
-                 "#flex-properties" (flexEditor target)))
+      (on document "propertyChange"
+          (if (and 
+                (is event.detail.property "display") 
+                (is event.detail.value "flex") 
+                (is target.childElementCount 0))
+            (do 
+              (addBlock)
+              (addBlock)))
+          ;(prn "propertyChange" event.detail)
+          (saveChanges))
 
-        (= target frame.body)
-        (frame.body.focus))
+      (on "input[type=radio]" "click"
+          (css ".content" "display none") 
+          (css (+ "#" event.target.value) "display flex"))
+
+
+      (on frame.body "focusin"
+          (= target event.target))
+
+      (watch target
+             (if oldvar
+               (css oldvar (border: "1px solid black")))
+             (css target (border: "2px solid tomato"))
+             (renderTo 
+               "#flex-properties" (flexEditor target)))
+
+      (= target frame.body)
+      (frame.body.focus))
 
 (e.g.
-  (;deploy "flowblock")
+  (deploy "flowblock")
   (branch "test"))
