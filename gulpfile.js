@@ -1,5 +1,6 @@
 var gulp = require('gulp'),
     plumber = require('gulp-plumber'),
+    server = require('gulp-server-livereload'),
     fs = require('fs');
  
 var s3 = require('gulp-s3-upload')(JSON.parse(fs.readFileSync('./aws.json')));
@@ -17,7 +18,16 @@ gulp.task('watch', function() {
   gulp.watch("./index.html", ['html']);
 });
 
-gulp.task('default', ["watch", "scripts", "html"]);
+gulp.task('webserver', function() {
+          gulp.src('build')
+          .pipe(server({ 
+                        livereload: true,
+                        directoryListing: true,
+                        open: true
+                        }));
+          });
+
+gulp.task('default', ["webserver", "watch", "scripts", "html"]);
 
 
 var jisp = (function() {

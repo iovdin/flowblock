@@ -76,11 +76,7 @@
               (elif (instanceof child doc.defaultView.Element) 
                     (result.appendChild child))
               (elif (and (is index 0) (isa child "object"))
-                    (over value key child
-                          (if (is key "css")
-                            (css result value)
-                            (result.setAttribute key value)
-                            )))
+                    (attr result child))
               (throw (new Error (+ "unknown element '" name "' with children: " child) ))))
        result))
 
@@ -208,6 +204,15 @@
               (over value key style 
                     (setPrefixedStyle element key value)))
         ))
+
+(def$ attr params
+      (over value key params
+            (if (is key "css")
+              (css result value)
+              (do 
+                (= attrNode (doc.createAttribute key))
+                (= attrNode.value value)
+                (element.setAttributeNode attrNode)))))
 
 (e.g.
   (css element (backgroundColor: "#FF0000"))
@@ -472,14 +477,13 @@
        (if (isa element "string")
          (= element (doc.querySelector element) ))
        (if (? element.ownerDocument.defaultView.getComputedStyle)
-         (do 
-           (= st (element.ownerDocument.defaultView.getComputedStyle element null))
-           (any 
-             (st.getPropertyValue name)
-             (st.getPropertyValue (dash2camel name))
-             (st.getPropertyValue (prefix name))
-             (st.getPropertyValue (dash2camel (prefix name)))
-             ))
+        (if (= st (element.ownerDocument.defaultView.getComputedStyle element null))
+          (any 
+            (st.getPropertyValue name)
+            (st.getPropertyValue (dash2camel name))
+            (st.getPropertyValue (prefix name))
+            (st.getPropertyValue (dash2camel (prefix name)))
+            ))
          )
        )
      )
@@ -696,8 +700,7 @@
      )
 
 (def content id 
-   (div (id: id) "#" id)
-   )
+     (div (id: id) "#" id))
 
 (def pageDefaults body
      (renderTo body 
@@ -725,22 +728,42 @@
     (label (input (type: "radio" name: "tab" value: "css")) "css")
     ))
 
+(mac defncall name ...params body
+     `(do 
+        (def ,name ,body)
+        (,name ,...params)))
+
+(e.g.
+  (defncall hotkey "new" "n" (span (button (id: (+ "btn_" #0) ) #0 ) (+ "'" #1 "'") (br)))
+  (hotkey "remove" "d")
+  (hotkey "copy" "y")
+  (hotkey "paste" "p")
+  )
+
 (once (is doc.readyState "complete")
       (renderTo "body" 
                 (div (id: "editor")
-                     (button (id: "btn_new") "new" ) 
-                     (button (id: "btn_remove") "remove") 
                      (br) 
-                     (div (id: "flex-properties")))
+                     (div (id: "flex-properties"))
+
+                     (defncall hotkey "new" "n" 
+                               (span (button (id: (+ "btn_" #0) ) #0 ) " - '" #1 "' on keyboard" (br)))
+                     (hotkey "remove" "d")
+                     (;hotkey "copy" "y")
+                     (;hotkey "paste" "p")
+                     )
                 (form 
-                  (label (input (type: "radio" name: "tab" value: "preview" checked: true)) "preview")
-                  (label (input (type: "radio" name: "tab" value: "html")) "html")
-                  (label (input (type: "radio" name: "tab" value: "css")) "css")
-                  )
+                  (defncall viewRadio "preview" true
+                            (label (input (:: 
+                                            `("type" "radio") 
+                                            `("name" "tab") 
+                                            (list "value" #0) 
+                                            (if #1 (list "checked" #1) (list)))) #0))
+                  (viewRadio "html")
+                  (viewRadio "css"))
                 (iframe (id: "preview" class: "content"))
-                (textarea (id: "html" class: "content" style: "display: none"))
-                (textarea (id: "css" class: "content" style: "display: none"))
-                )
+                (textarea (id: "html" class: "content" style: "display: none" readonly: true spellcheck: false))
+                (textarea (id: "css" class: "content" style: "display: none" readonly: true spellcheck: false)))
 
       (css "#editor" "position fixed top 10px right 10px width 300px background-color #EEEEEE")
       (css ".content" "width 600px height 400px")
@@ -768,6 +791,7 @@
                  (pageDefaults frame.body))
                ))
 
+
       (css "div" (border: "1px solid black"))
       (css doc.body "display flex justify-content center align-items center flex-grow 1")
       (css doc.body "height 100% background-color #EEEEEE")
@@ -775,66 +799,92 @@
       (stylesheet "body, div { background: #EEEEEE; border: 1px solid black; margin: 5px; }")
 
       (= doc document)
+      (= target null)
 
-      (def dataChanged
-           (do
-             (= doc frame)
-             (localStorage.setItem "data" frame.body.innerHTML)
-             (= props (html: (: "min-width" "100%" "display" "flex")
-                             body: (flexProperties frame.body)))
+      (defncall 
+        dataChanged
+        (do
+          (= doc frame)
+          (localStorage.setItem "data" frame.body.innerHTML)
+          (= props (html: (: "min-width" "100%" "display" "flex")
+                          body: (flexProperties frame.body)))
 
-             ($ "div" 
-                (= props[(selector element)] (flexProperties element)))
+          ($ "div" 
+             (= props[(selector element)] (flexProperties element)))
 
-             (= stylesheet ((over value name props (cssFlexRule name value true)).join "\n"))
-             (= doc document)
-             (= html (+ "<body>\n"
-                        (do-recur frame.body.children "  "
-                                  ((for child #0
-                                        (+ #1 "<" (child.tagName.toLowerCase) " id='" child.id"'>\n" 
-                                           (recur child.children (+ #1 "  "))
-                                           #1 "</" (child.tagName.toLowerCase) ">\n")
-                                        ).join ""))
+          (= stylesheet ((over value name props (cssFlexRule name value true)).join "\n"))
+          (= doc document)
+          (= html (+ "<body>\n"
+                     (do-recur frame.body.children "  "
+                               ((for child #0
+                                     (+ #1 "<" (child.tagName.toLowerCase) " id='" child.id"'>\n" 
+                                        (recur child.children (+ #1 "  "))
+                                        #1 "</" (child.tagName.toLowerCase) ">\n")
+                                     ).join ""))
 
-                        "</body>"))
+                     "</body>"))
 
-             ($ "#css" (= element.value stylesheet))
-             ($ "#html" (= element.value html))))
+          ($ "#css" (= element.value stylesheet))
+          ($ "#html" (= element.value html))
+          (= tabIndex 0)
+          (do-recur frame.body
+                    (do 
+                      ;TODO fix tabIndex is 2 * tabIndex
+                      (;prn "tabIndex" #0 tabIndex)
+                       (attr #0 (tabindex: tabIndex))
+                       tabIndex++
+                       (for child #0.children
+                            (recur child))))
 
-      (dataChanged)
+                    ))
 
-      (on "#btn_new" "click"
-          ;(if (and (is target.children.length 0) (isnt (getStyle target "display") "flex" "flex-inline")))
-          (target.appendChild (content (newId)))
-          (dataChanged)
-          )
+        (mac change-on selector event ...body
+             `(on ,selector ,event
+                  ,...body
+                  (dataChanged)))
 
-      (on "#btn_remove" "click"
-          (if (isnt target frame.body)
-            (target.parentElement.removeChild target))
-          (dataChanged))
+        (def addBlock 
+             (target.appendChild (content (newId))))
 
-      (on document "propertyChange"
-          (dataChanged))
+        (def removeBlock
+             (if (isnt target frame.body)
+               (do
+                 (if (? target.nextElementSibling)
+                   (= newTarget target.nextElementSibling))
+                 (target.parentElement.removeChild target)
+                 (if newTarget
+                   (= target newTarget))
+                 )))
 
-      (on "input[type=radio]" "click"
-          (css ".content" "display none") 
-          (css (+ "#" event.target.value) "display flex"))
+        (change-on frame.body "keypress"
+                   (switch (String.fromCharCode event.charCode)
+                           (case "n" (addBlock))
+                           (case "d" (removeBlock))
+                           (prn event)))
 
-      (watch target 
-             (if oldvar
-               (css oldvar (border: "1px solid black")))
-             (css target (border: "2px solid tomato"))
-             (renderTo 
-               "#flex-properties" (flexEditor target)))
 
-      (= target frame.body)
+        (change-on "#btn_new" "click" (addBlock))
+        (change-on "#btn_remove" "click" (removeBlock))
+        (change-on document "propertyChange")
 
-      (on frame.body "click" 
-          (= target event.target))
+        (on "input[type=radio]" "click"
+            (css ".content" "display none") 
+            (css (+ "#" event.target.value) "display flex"))
 
-      )
+
+        (on frame.body "focusin"
+            (= target event.target))
+
+        (watch target
+               (if oldvar
+                 (css oldvar (border: "1px solid black")))
+               (css target (border: "2px solid tomato"))
+               (renderTo 
+                 "#flex-properties" (flexEditor target)))
+
+        (= target frame.body)
+        (frame.body.focus))
 
 (e.g.
-  (; deploy "flowblock")
+  (;deploy "flowblock")
   (branch "test"))
