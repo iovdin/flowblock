@@ -395,6 +395,7 @@
   (is (interpolateNumber 0 4 "1px" (postfix: "px")) "1px")
   )
 
+
 (mac on-choose element options ...body
      `(do
         (= options ,options)
@@ -471,6 +472,9 @@
                          (min: 0 step: 1 default: 1 postfix:m))) 
              (prn choice))
   )
+
+(e.g.
+  (dropdown ()))
 
 
 (def getComputedStyle element name
@@ -676,8 +680,6 @@
               {props.push (selector #0) (flexProperties #0)})
     ))
 
-(def dataMap start callback)
-
 
 (def cssFlexRule selector properties prefixed
      (+ selector " {\n" 
@@ -695,6 +697,28 @@
           ((for itemProp `("flex-grow" "flex-shrink" "flex-basis") 
                 (if (? properties[itemProp])
                   (+ (cssDeclaration itemProp properties[itemProp] prefixed) (if prefixed "\n" "")))
+                ).join "")
+          )
+        "}")
+     )
+
+(def sassFlexRule selector properties prefixed
+     (+ selector " {\n" 
+        (+
+          (if (is properties.display "flex") 
+            ((list 
+              (defncall sassInclude "flexbox" (+ "  @include " #0 
+                                                      (if #1 (+ "(" #1 ")") "") ";\n"))
+                   ...(for containerProp `("flex-direction" "flex-wrap" "justify-content" "align-items")
+                           (if (? properties[containerProp])
+                             (sassInclude containerProp properties[containerProp])
+                             ) 
+                           )).join "")
+            "")
+          "\n"
+          ((for itemProp `("flex-grow" "flex-shrink" "flex-basis") 
+                (if (? properties[itemProp])
+                  (sassInclude itemProp properties[itemProp] ))
                 ).join "")
           )
         "}")
@@ -738,8 +762,17 @@
   (defncall hotkey "new" "n" (span (button (id: (+ "btn_" #0) ) #0 ) (+ "'" #1 "'") (br)))
   (hotkey "cut" "d")
   (hotkey "copy" "y")
-  (hotkey "paste" "p")
-  )
+  (hotkey "paste" "p"))
+
+
+
+(;once (is doc.readyState "complete")
+      (= el (select (option (a (href: "http://google.com") "auto")) (option "100%") (option "100vh")))
+      (renderTo "body" el (button "click"))
+      ;(css "select" "-webkit-appearance none -moz-appearance none appearance none border none")
+      (on "button" "click"
+          (simulateClick el)
+          ))
 
 (once (is doc.readyState "complete")
       (renderTo "body" 
@@ -749,10 +782,7 @@
 
                      (defncall hotkey "new" "n" 
                                (span (button (id: (+ "btn_" #0) ) #0 ) " - '" #1 "' on keyboard" (br)))
-                     (hotkey "cut" "d")
-                     (;hotkey "copy" "y")
-                     (;hotkey "paste" "p")
-                     )
+                     (hotkey "cut" "d"))
                 (form 
                   (defncall viewRadio "preview" true
                             (label (input (:: 
@@ -761,10 +791,14 @@
                                             (list "value" #0) 
                                             (if #1 (list "checked" #1) (list)))) #0))
                   (viewRadio "html")
-                  (viewRadio "css"))
+                  (viewRadio "css")
+                  (viewRadio "sass")
+                  )
                 (iframe (id: "preview" class: "content"))
-                (textarea (id: "html" class: "content" style: "display: none" readonly: true spellcheck: false))
-                (textarea (id: "css" class: "content" style: "display: none" readonly: true spellcheck: false)))
+                (defncall sourcearea "html"
+                 (textarea (id: #0 class: "content" style: "display: none" readonly: true spellcheck: false)))
+                (sourcearea "css")
+                (sourcearea "sass"))
 
       (css "#editor" "position fixed top 10px right 10px width 300px background-color #EEEEEE")
       (css ".content" "width 600px height 400px")
@@ -814,6 +848,10 @@
 
           (= doc document)
           ($ "#css" (= element.value ((over value name props (cssFlexRule name value true)).join "\n")))
+
+          ($ "#sass" (= element.value ((list 
+                                       "//import this plugin\n//https://github.com/mastastealth/sass-flex-mixin/blob/master/_flexbox.scss\n"
+                                        ...(over value name props (sassFlexRule name value ))).join "\n")))
           ($ "#html" (= element.value 
                         (+ "<body>\n"
                            (do-recur frame.body.children "  "
