@@ -403,6 +403,12 @@
   (is (interpolateNumber 0 4 undefined (default: 5)) 5))
 
 
+(def dispatch object eventname
+     (object.dispatchEvent 
+       (new object.ownerDocument.defaultView.Event eventname (bubbles: true))))
+(e.g.
+ (dispatch object eventname))
+
 (def inputNumber attrs 
      (do
        (= el (span attrs (any attrs.value attrs.default attrs.min "")))
@@ -436,7 +442,8 @@
 
        (= wrappedChildren (for child children
                                (if (isa child "string" "number")
-                                 (div child)
+                                 (div (css: (border: "1px solid light-grey"
+                                                     padding: "1px")) child)
                                  child
                                  )))
 
@@ -444,21 +451,43 @@
          (= index (children.indexOf attrs.selected)))
 
        (= opened (div (css: (display: "none" position: "absolute" background: "#FFF")) ...wrappedChildren))
-       (= closed (span ((get wrappedChildren index).cloneNode true)))
-       (= el (span (extend attrs (css: "display inline-block")) closed opened))
+       (= closed (span (get children index)))
+       (= el (span (extend attrs (css: (display: "inline-block" cursor: "default"))) closed opened))
        (= el.val closed.textContent)
 
        (on document "click"
            (if (and (is (getSpecifiedStyle opened "display") "none")
                     (closed.contains event.target))
-             (css opened "display block")
+             (do (css opened "display block")
+               (= lastChoice null)
+               (= initialChoice el.val)
+               (= moveUnsubscribe 
+                  (on document "mousemove"
+                      (if (and (opened.contains event.target) (isnt lastChoice event.target))
+                        (do 
+                          (= newChoice event.target)
+                          (css newChoice "background-color lightgray")
+                          (if lastChoice
+                            (css lastChoice "background-color white"))
+                          (= el.val newChoice.textContent)
+                          (dispatch el "change")
+                          (= lastChoice newChoice)))
+                      ))
+               (on-once document "click"
+                        (if lastChoice
+                          (css lastChoice "background-color white"))
+                        (if (not (opened.contains event.target))
+                          (do 
+                            (= el.val initialChoice)
+                            (dispatch el "change")))
+                        (moveUnsubscribe))
+               )
              (css opened "display none")))
 
        (on opened "click"
-           (renderTo closed (event.target.cloneNode true))
+           (renderTo closed (span event.target.textContent))
            (= el.val closed.textContent)
-           (el.dispatchEvent 
-             (new el.ownerDocument.defaultView.Event "change" (bubbles: true))))
+           (dispatch el "change"))
        el))
 
 (e.g. 
