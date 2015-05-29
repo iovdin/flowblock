@@ -71,7 +71,7 @@
      (do
        (= result (doc.createElement (name.toUpperCase)))
        (for child index children 
-            (if (isa child "string")
+            (if (isa child "string" "number")
               (result.appendChild (doc.createTextNode child))
               (elif (instanceof child doc.defaultView.Element) 
                     (result.appendChild child))
@@ -208,7 +208,7 @@
 (def$ attr params
       (over value key params
             (if (is key "css")
-              (css result value)
+              (css element value)
               (do 
                 (= attrNode (doc.createAttribute key))
                 (= attrNode.value value)
@@ -270,6 +270,17 @@
   (on-once document "mouseup"
            (prn "mouseup"))
   )
+
+(mac oncall object eventname ...body
+     `(new-scope
+        (= callback (fn event (do ,...body)))
+        (= unsubscribe 
+           (addListener ,object ,eventname callback))
+        (callback ,object)))
+
+(e.g.
+  (oncall flexBasis "change"
+          (prn flexBasis.val)))
 
 (e.g. 
   (on e "mousedown"
@@ -384,97 +395,74 @@
          (= choice (Math.max choice options.min)))
        (if (? options.max)
          (= choice (Math.min choice options.max)))
-       (= choice (+ choice (any options.postfix 0)))
        choice))
 
 (e.g.
   (is (interpolateNumber -10 4 1 (min: 0)) 0)
   (is (interpolateNumber 1000 4 1 (max: 100)))
-  (is (interpolateNumber 0 4 undefined (default: 5)) 5)
-  (is (interpolateNumber 0 4 1 (postfix: "px")) "1px")
-  (is (interpolateNumber 0 4 "1px" (postfix: "px")) "1px")
-  )
+  (is (interpolateNumber 0 4 undefined (default: 5)) 5))
 
 
-(mac on-choose element options ...body
-     `(do
-        (= options ,options)
-        (= element ,element)
-        (= superOptions 
-           (if (and (instanceof options Array)
-                    (options.some 
-                      (fn opt 
-                          (and (isnta opt "string") (isnt opt "number")))))
-             options))
-
-        (= superMode false)
-        (def setSuperMode mode 
-             (do
-               (= superMode mode)
-               (if superMode
-                 (css element (list "border-bottom" "2px dashed #FF0000"))
-                 (css element (list "border-bottom" "1px dashed #46f"))
-                 )))
-        (setSuperMode false)
-
-        (if (? superOptions)
-          (do
-            (= options superOptions[0])
-            (setSuperMode true)))
-
-        (on-drag ,element
-                 (do
-                   (event.preventDefault)
-                   (= node (head (get element "childNodes")))
-                   (= initialValue node.nodeValue)
-                   (if superMode
-                     (= options (interpolateArray 0 10 initialValue  superOptions))))
-                 (if superMode
-                   (do 
-                     (= options (interpolateArray -state.tdx 10 initialValue  superOptions))
-                     (= choice 
-                        (if (instanceof options Array)
-                          options[0]
-                          (elif (isa options "string") options)
-                          (elif (isa options "object")
-                                (+ (any (parseFloat initialValue) options.default "") 
-                                   (any options.postfix "")))
-                          ""
-                          )))
-                   (= choice (if (instanceof options Array)
-                               (interpolateArray -state.tdx 10 initialValue  options)
-                               (elif (isa options "string") initialValue)
-                               (interpolateNumber -state.tdx 4 initialValue options)))
-                   )
-                 (if (isnt choice node.nodeValue)
-                   (do 
-                     (= node.nodeValue choice)
-                     ,...body))
-
-                 (if (and (? superOptions) (is initialValue node.nodeValue))
-                   (setSuperMode (not superMode)))
-                 )))
-
-(e.g. 
-  (on-choose element `("block" "flex" "none")
-             (prn choice))
-
-  (on-choose element (min: 0 step: 0.5 default: 1 postfix: "") 
-             (prn choice))
-
-  (on-choose element (list "auto" (min: 0 max: 100 step: 1 default: 1 postfix: "%") ) 
-             (prn choice))
-
-  (on-choose e (list 
-                 "auto" 
-                 (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
-                 ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
-                         (min: 0 step: 1 default: 1 postfix:m))) 
-             (prn choice))
-  )
+(def inputNumber attrs 
+     (do
+       (= el (span attrs (any attrs.value attrs.default attrs.min "")))
+       (css el (: cursor "ew-resize"
+                  "border-bottom" "1px solid #46f"))
+       (unselectable el)
+       (= el.val el.textContent)
+       (on-drag el
+                (do (= node el.childNodes[0])
+                  (= initialValue node.nodeValue))
+                (= choice (interpolateNumber -state.tdx 4 initialValue attrs))
+                (if (isnt choice el.nodeValue)
+                  (do (= node.nodeValue choice)
+                    (= el.val choice)
+                    (el.dispatchEvent 
+                      (new el.ownerDocument.defaultView.Event "change" (bubbles: true)))))
+                (noop))
+       el
+       ))
 
 (e.g.
-  (dropdown ()))
+  (inputNumber (id : "flex-basis" min:0 max: 100)))
+
+(def dropdown ...children
+     (do
+       (= index 0)
+       (= attrs (:))
+       (if (and (isa children[0] "object") (?! children[0].appendChid))
+         (do (= attrs children[0])
+           (= children (children.slice 1))))
+
+       (= wrappedChildren (for child children
+                               (if (isa child "string" "number")
+                                 (div child)
+                                 child
+                                 )))
+
+       (if (and (isnt attrs.selected -1) (isnt (children.indexOf attrs.selected) -1))
+         (= index (children.indexOf attrs.selected)))
+
+       (= opened (div (css: (display: "none" position: "absolute" background: "#FFF")) ...wrappedChildren))
+       (= closed (span ((get wrappedChildren index).cloneNode true)))
+       (= el (span (extend attrs (css: "display inline-block")) closed opened))
+       (= el.val closed.textContent)
+
+       (on document "click"
+           (if (and (is (getSpecifiedStyle opened "display") "none")
+                    (closed.contains event.target))
+             (css opened "display block")
+             (css opened "display none")))
+
+       (on opened "click"
+           (renderTo closed (event.target.cloneNode true))
+           (= el.val closed.textContent)
+           (el.dispatchEvent 
+             (new el.ownerDocument.defaultView.Event "change" (bubbles: true))))
+       el))
+
+(e.g. 
+  (dropdown (id: "mydropdown" selection: "auto" ) "auto" "100%" "100vh"))
 
 
 (def getComputedStyle element name
@@ -488,14 +476,10 @@
             (st.getPropertyValue (dash2camel name))
             (st.getPropertyValue (prefix name))
             (st.getPropertyValue (dash2camel (prefix name)))
-            ))
-         )
-       )
-     )
+            )))))
 
 (e.g.
-  (getComputedStyle "#content" "display")
-  )
+  (getComputedStyle "#content" "display"))
 
 
 (def getSpecifiedStyle element name
@@ -550,59 +534,48 @@
 (e.g.
   (renderTo "#content" (element "p" "hello world")))
 
-(mac css-property key value ...body 
-     `(new-scope
-        (= valueElement (span ,value))
-        (css valueElement (: cursor "ew-resize"
-                             "border-bottom" "1px dashed #46f"))
-        (= keyElement (span ,key))
-        ,...body
-        (= result (li (: "id" ,key) keyElement ": " valueElement))
-        (unselectable result)
-        result
-        ))
 
+(def extend object properties
+     (do
+       (= result (:))
+       (over value key properties
+             (= result[key] value))
+       (over value key object
+             (= result[key] value))
+       result))
 
-(e.g.
-  (css-property "display" "flex" 
-                (on-choose valueElement `("flex" "inline" "none" "block" )
-                           (prn choice)
-                           (css target (: "display" choice))
-                           )))
+(e.g. 
+  (is (extend (a: 1) (b: 2)) (a: 1 b: 2)))
 
+(def editableProperty name ...children 
+     (do
+       (= keyElement (span name))
+       (= valueElement (span ...children))
+       (= result (li (: "id" ,name) keyElement ": " valueElement))
+       (unselectable result)
+       (= result.property name)
+       (= result.val ((for child children child.val).join ""))
 
-(mac flex-property name choices ...body
-     `(css-property ,name (deprefix (getStyle target ,name))
-                    (on-choose valueElement ,choices
-
-                               (css target (: ,name choice))
-                               ,...body
-                               (doc.dispatchEvent 
-                                 (new doc.defaultView.CustomEvent "propertyChange" 
-                                      (: "detail" (: "property" ,name "value" choice))))
-                               )))
+       (on valueElement "change"
+           (event.stopImmediatePropagation)
+           (= result.val ((for child children (any child.val child.textContent)).join ""))
+           (result.dispatchEvent 
+             (new result.ownerDocument.defaultView.Event "propertyChange" (bubbles: true))))
+       result))
 
 
 (e.g. 
-  (flex-property "flex-direction" `("row" "row-reverse" "column" "column-reverse"))
+  (editableProperty "flex-direction" (dropdown "row" "row-reverse" "column" "column-reverse"))
+  (do
+    (renderTo "body" (editableProperty "display" (dropdown "flex" "block" "inline" "none")))
+    (on doc "propertyChange"
+        (prn event.target.property event.target.val)))
 
-  (flex-property "display" `("flex" "block" "inline" "none")
-                 (css `("#flex-direction" "#flex-wrap" "#justify-content" "#align-items") 
-                      (display: (if (or (is value "flex") (is value "flex-inline")) "block" "none"))))
+  (editableProperty "flex-grow" (inputNumber (min: 0 step: 1 default: 1)) "px")
 
-  (flex-number-property "flex-grow" (min: 0 step: 0.5 default: 1 postfix: ""))
-  )
-
-(e.g.
-  (flex-number-property "flex-grow" (min: 0 step: 0.5 default: 1 postfix: ""))
-
-  (flex-property "flex-basis"
-                 (list 
-                   "auto" 
-                   (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
-                   ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
-                           (min: 0 step: 1 default: 1 postfix:m))))
-  )
+  (editableProperty "flex-basis" 
+                (inputNumber (min: 0 step: 1 default: 1)) 
+                (dropdown "auto % px mm cm in pt pc em ex ch rem vh vw vmin vmax")))
 
 (def selector target
      (if (isa target "string")
@@ -614,44 +587,46 @@
 
 (def flexEditor target
      (do
-       (= setFlexAvailable 
-          (fn choice
-              (css containerProps 
-                   (visibility: (if (is choice "flex")  "visible" "hidden")))))
-
-       (= containerProps (list))
+       (= props (:))
        (= html 
           (code 
             (span (selector target)) " {"
             (ul (style: "list-style-type: none;") 
-                (flex-property 
-                  "display" `("block" "flex" "none" "inline" )
-                  (setFlexAvailable choice))
-                ...(= containerProps 
-                      (list 
-                        (flex-property "flex-direction" 
-                                       `("row" "column" "column-reverse" "row-reverse" ))
-                        (flex-property "flex-wrap" 
-                                       `("wrap" "nowrap" "wrap-reverse"))
-                        (flex-property "justify-content" 
-                                       `("flex-start" "flex-end" "center" "space-between" "space-around"))
-
-                        (flex-property "align-items" 
-                                       `("flex-start" "flex-end" "center" "baseline" "stretch"))))
+                (defncall dropProp "display" `("block" "flex" "none" "inline")
+                          (= (get props #0) 
+                             (editableProperty #0 (dropdown 
+                                                    (selected: (deprefix (getStyle target #0))) 
+                                                    ...#1 ))))
+                (dropProp "flex-direction" `("row" "column" "column-reverse" "row-reverse"))
+                (dropProp "flex-wrap" `("wrap" "nowrap" "wrap-reverse"))
+                (dropProp "justify-content" `("flex-start" "flex-end" "center" "space-between" "space-around"))
+                (dropProp "align-items" `("flex-start" "flex-end" "center" "baseline" "stretch"))
                 (br)
-                (flex-property "flex-grow" (min: 0 default: 0 step : 1))
-                (flex-property "flex-shrink" (min: 0 default: 1 step : 1))
-                (flex-property "flex-basis" 
-                               (list 
-                                 "auto" 
-                                 (min: 0 max: 100 step: 1 default: 100 postfix:"%") 
-                                 ...(for m ("px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " ")
-                                         (min: 0 step: 1 postfix:m default: 1))
-                                 ))
+                (editableProperty "flex-grow" (inputNumber (min: 0 default: 0 step : 1 value: (getStyle target "flex-grow"))))
+                (editableProperty "flex-shrink" (inputNumber (min: 0 default: 1 step : 1 value: (getStyle target "flex-shrink"))))
+                (= flexBasis 
+                   (editableProperty "flex-basis" 
+                                     (= inputFlexBasis (inputNumber (min: 0 step: 1 default: 1)))
+                                     (dropdown ...("auto % px mm cm in pt pc em ex ch rem vh vw vmin vmax".split " "))))
                 )
             "}"
             ))
-       (setFlexAvailable (deprefix (getStyle target "display")))
+       (= containerProps (list props["flex-direction"] props["flex-wrap"] props["justify-content"] props["align-items"]))
+
+       (oncall flexBasis "propertyChange"
+               (if (isnt (flexBasis.val.indexOf "auto") -1)
+                 (do (css inputFlexBasis "display none")
+                   (= flexBasis.val "auto"))
+                 (css inputFlexBasis "display inline")))
+
+       (on html "propertyChange"
+           (= property event.target.property)
+           (= value event.target.val)
+           (if (is property "display")
+             (css containerProps 
+                  (visibility: (if (is value "flex")  "visible" "hidden"))))
+
+           (css target (:: (list property value))))
        html
        ))
 
@@ -663,22 +638,6 @@
  (is (flexProperties frame.body) 
      (: display "flex" "flex-direction" "row"))
  )
-
-(def domVisit startElement callback
-     (do
-       (= h (callback startElement))
-       (= t (for element startElement.children
-                 (domVisit element callback)))
-       (if (and (? h) (? t.length)) 
-         (if (is t.length 0)
-           h (list h ...t)))))
-
-(e.g.
-  (do 
-    (= props (list))
-    (domVisit frame.body 
-              {props.push (selector #0) (flexProperties #0)})
-    ))
 
 
 (def cssFlexRule selector properties prefixed
@@ -767,12 +726,9 @@
 
 
 (;once (is doc.readyState "complete")
-      (= el (select (option (a (href: "http://google.com") "auto")) (option "100%") (option "100vh")))
-      (renderTo "body" el (button "click"))
-      ;(css "select" "-webkit-appearance none -moz-appearance none appearance none border none")
-      (on "button" "click"
-          (simulateClick el)
-          ))
+      (renderTo "body" (= el (editableProperty "flex-grow" (min: 0 default: 0 step : 1 value: (getStyle doc.body "flex-grow")))))
+      (on doc "propertyChange" 
+          (prn "change" event.target.val)))
 
 (once (is doc.readyState "complete")
       (renderTo "body" 
@@ -850,8 +806,8 @@
           ($ "#css" (= element.value ((over value name props (cssFlexRule name value true)).join "\n")))
 
           ($ "#sass" (= element.value ((list 
-                                       "//import this plugin\n//https://github.com/mastastealth/sass-flex-mixin/blob/master/_flexbox.scss\n"
-                                        ...(over value name props (sassFlexRule name value ))).join "\n")))
+                                         "//import this plugin\n//https://github.com/mastastealth/sass-flex-mixin/blob/master/_flexbox.scss\n"
+                                         ...(over value name props (sassFlexRule name value ))).join "\n")))
           ($ "#html" (= element.value 
                         (+ "<body>\n"
                            (do-recur frame.body.children "  "
@@ -910,13 +866,12 @@
 
       (on document "propertyChange"
           (if (and 
-                (is event.detail.property "display") 
-                (is event.detail.value "flex") 
+                (is event.target.property "display") 
+                (is event.target.val "flex") 
                 (is target.childElementCount 0))
             (do 
               (addBlock)
               (addBlock)))
-          ;(prn "propertyChange" event.detail)
           (saveChanges))
 
       (on "input[type=radio]" "click"
